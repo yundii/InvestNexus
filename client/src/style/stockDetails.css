@@ -1,0 +1,293 @@
+.stock-details-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .stock-details-header {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #eee;
+    text-align: center;
+  }
+  
+  .symbol-cell {
+    color: #0066cc;
+    cursor: pointer;
+    transition: color 0.3s ease;
+  }
+  
+  .symbol-cell:hover {
+    color: #004499;
+    text-decoration: underline;
+  }
+  
+  .chart-container {
+    background: white;
+    padding: 20px 40px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin: 20px auto;
+    width: 90%;
+    min-height: 400px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .latest-price-info {
+    margin: 20px auto;
+    padding: 15px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-width: 90%;
+    text-align: center;
+  }
+  
+  .latest-price-info p {
+    margin: 5px 0;
+    font-size: 1.1em;
+  }
+  
+  .latest-price-info p:first-child {
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  
+  .period-selector {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 20px auto;
+    max-width: 90%;
+    flex-wrap: wrap;
+  }
+  
+  .period-button {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: rgb(163, 159, 159);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+    min-width: 45px;
+    text-align: center;
+  }
+  
+  .period-button:hover {
+    background: #241b1b;
+  }
+  
+  .period-button.active {
+    background: rgb(75, 192, 192);
+    color: black;
+    border-color: rgb(75, 192, 192);
+  }
+  
+  @media (max-width: 768px) {
+    .period-selector {
+      gap: 6px;
+    }
+    
+    .period-button {
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      min-width: 40px;
+    }
+  }
+  
+  .action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin: 20px auto;
+    width: 100%;
+  }
+  
+  .action-buttons .like-button-container,
+  .action-buttons .add-button-container {
+    margin: 0;
+    width: auto;
+  }
+  
+  /* responsive design */
+  /* large screen device (1200px and above) */
+  @media (min-width: 1200px) {
+    .chart-container {
+        width: 80%;
+        min-height: 500px;
+    }
+
+    .latest-price-info {
+        max-width: 80%;
+    }
+  }
+  
+    /* tablet and small laptop (768px - 1199px) */
+  @media (max-width: 1199px) {
+    .stock-details-container {
+        padding: 15px;
+    }
+
+    .stock-details-header {
+        font-size: 1.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-container {
+        padding: 15px 25px;
+        min-height: 350px;
+    }
+
+    .latest-price-info p {
+        font-size: 1rem;
+    }
+  }
+  
+  /* tablet (768px - 991px) */
+  @media (max-width: 991px) {
+    .stock-details-header {
+        font-size: 1.5rem;
+    }
+
+    .chart-container {
+        width: 95%;
+        padding: 15px;
+        min-height: 300px;
+    }
+
+    .period-selector {
+        gap: 8px;
+        padding: 0 10px;
+    }
+
+    .period-button {
+        padding: 5px 10px;
+        font-size: 0.85rem;
+    }
+
+    .action-buttons {
+        gap: 15px;
+    }
+  }
+  
+  /* mobile device (576px - 767px) */
+  @media (max-width: 767px) {
+    .stock-details-container {
+        padding: 10px;
+    }
+
+    .stock-details-header {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .chart-container {
+        width: 100%;
+        padding: 10px;
+        min-height: 250px;
+        margin: 10px auto;
+    }
+
+    .latest-price-info {
+        padding: 10px;
+        margin: 10px auto;
+    }
+
+    .latest-price-info p {
+        font-size: 0.9rem;
+    }
+
+    .period-selector {
+        gap: 5px;
+        margin: 10px auto;
+    }
+
+    .period-button {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+        min-width: 35px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .action-buttons .like-button-container,
+    .action-buttons .add-button-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+    }
+  }
+  
+  /* small mobile device (575px and below) */
+  @media (max-width: 575px) {
+    .stock-details-header {
+        font-size: 1.1rem;
+    }
+
+    .chart-container {
+        min-height: 200px;
+        padding: 5px;
+    }
+
+    .latest-price-info {
+        width: 100%;
+    }
+
+    .latest-price-info p {
+        font-size: 0.85rem;
+    }
+
+    .period-selector {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .period-button {
+        padding: 3px 6px;
+        font-size: 0.75rem;
+        min-width: 30px;
+    }
+
+    /* optimize button layout on very small screen */
+    .period-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+        gap: 4px;
+        padding: 0 5px;
+    }
+  }
+  
+  /* optimize for landscape mode */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .chart-container {
+        min-height: 180px;
+    }
+
+    .stock-details-header {
+        margin-bottom: 0.5rem;
+    }
+
+    .latest-price-info {
+        margin: 5px auto;
+    }
+
+    .period-selector {
+        margin: 5px auto;
+    }
+  }

@@ -1,0 +1,288 @@
+* {
+  /* margin: 0; */
+  padding: 0;
+  box-sizing: border-box;
+}
+
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+.home-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.nav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  /* border-bottom: 1px solid #e0e0e0; */
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.logo h1 {
+  color: #333;
+  /* margin: 0; */
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-right: 8rem;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  position: relative;
+  padding: 0 2rem;
+}
+
+.main-nav a {
+  color: #333;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.main-nav a:not(:last-child) {
+  margin-right: 2rem;
+}
+
+/* .main-nav::before,
+.main-nav::after {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 35px;
+  background-color: #000000;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+} */
+
+.main-nav::before {
+  left: 0;
+}
+
+.main-nav::after {
+  right: 0;
+}
+
+.auth-nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.login-btn, 
+.signup-btn {
+  padding: 0.5rem 1.5rem;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.login-btn {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.signup-btn {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.hero-section {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100vh;
+  background-image: url('../images/Home.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  z-index: 0;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-content h1 {
+  font-size: 4rem;
+  font-weight: bold;
+  line-height: 1.2;
+  color: white;
+  margin-bottom: 2rem;
+}
+
+.start-now-btn {
+  padding: 1rem 2.5rem;
+  font-size: 1.2rem;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: transform 0.3s ease, background-color 0.3s ease;
+}
+
+.start-now-btn:hover {
+  transform: scale(1.05);
+  background-color: #45a049;
+}
+
+/* Mobile First (default styles) */
+.nav-header {
+  flex-direction: column;
+  padding: 0.5rem;
+}
+
+.logo h1 {
+  margin-right: 0;
+  font-size: 1.2rem;
+}
+
+.main-nav {
+  flex-direction: column;
+  width: 100%;
+  padding: 0.5rem;
+}
+
+.main-nav a {
+  width: 100%;
+  text-align: center;
+}
+
+.auth-nav {
+  width: 100%;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.hero-content {
+  padding: 1rem;
+  text-align: center;
+}
+
+.hero-content h1 {
+  font-size: 2rem;
+}
+
+.start-now-btn {
+  width: 100%;
+  max-width: 300px;
+}
+
+/* Tablet (550px and up) */
+@media (min-width: 550px) {
+  .nav-header {
+    flex-direction: row;
+    padding: 1rem 2rem;
+  }
+
+  .logo h1 {
+    font-size: 1.3rem;
+    /* margin-right: 2rem; */
+  }
+
+  .main-nav {
+    flex-direction: row;
+    width: auto;
+    padding: 0 1rem;
+  }
+
+  .main-nav a {
+    width: auto;
+  }
+
+  .auth-nav {
+    width: auto;
+  }
+
+  .hero-content {
+    padding-left: 2rem;
+    text-align: left;
+  }
+
+  .hero-content h1 {
+    font-size: 3rem;
+  }
+
+  .start-now-btn {
+    width: auto;
+  }
+}
+
+/* Desktop (800px and up) */
+@media (min-width: 800px) {
+  .logo h1 {
+    font-size: 1.5rem;
+    /* margin-right: 16rem; */
+  }
+
+  .main-nav {
+    padding: 0 2rem;
+  }
+
+  .main-nav a:not(:last-child) {
+    margin-right: 2rem;
+  }
+
+  .main-nav::before,
+  .main-nav::after {
+    display: block;
+  }
+
+  .hero-content {
+    padding-left: 4rem;
+  }
+
+  .hero-content h1 {
+    font-size: 4rem;
+  }
+}
+
+
+.dropdown-content {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%); 
+  background-color: white;
+  min-width: 160px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 1001;
+}

@@ -1,0 +1,239 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+
+.nav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  height: 30px;  /* adjust size as needed */
+  width: auto;
+}
+
+.logo h1 {
+  color: #000000;
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin-right: 16rem;
+}
+
+.main-nav {
+  display: flex;
+  align-items: center;
+  position: relative;
+  padding: 0 2rem;
+}
+
+.main-nav a,
+.main-nav .nav-item {
+  color: #000000;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  height: 35px;
+}
+
+.main-nav a:not(:last-child),
+.main-nav .nav-item:not(:last-child) {
+  margin-right: 2rem;
+  padding-right: 2rem;
+  position: relative;
+}
+
+.main-nav::before,
+.main-nav::after {
+  content: '';
+  display: block;
+  width: 1px;
+  height: 35px;
+  background-color: #000000;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 35px;
+  width: 1px;
+  background-color: #000000;
+}
+
+.nav-item.dropdown {
+  position: relative;
+  cursor: pointer;
+  height: 35px;
+  display: flex;
+  align-items: center;
+}
+
+.auth-nav {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+
+.auth-nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.auth-nav span {
+  color: #000000;
+  font-weight: 500;
+}
+
+.logout-btn {
+  padding: 0.5rem 1.5rem;
+  background-color: #424242;
+  color: white;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.logout-btn:hover {
+  background-color: #616161;
+  transform: scale(1.05);
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  background-color: #f8f9fa;
+}
+
+
+footer {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  text-align: center;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.nav-item.dropdown {
+  position: relative;
+  cursor: pointer;
+}
+
+.nav-item.dropdown span {
+  color: #000000;
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: white;
+  min-width: 160px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  border-radius: 4px;
+  z-index: 1000;
+}
+
+.nav-item.dropdown:hover .dropdown-content {
+  display: block;
+}
+
+.dropdown-content div {
+  padding: 0.8rem 1rem;
+  color: #333;
+  cursor: pointer;
+}
+
+.dropdown-content div:hover {
+  background-color: #f5f5f5;
+}
+
+.profile-icon {
+  width: 30px;  /* or the size you want */
+  height: 30px;
+  border-radius: 50%;  /* make image circular */
+  object-fit: cover;  /* ensure image fills the space */
+  margin-right: 8px;
+}
+
+.profile-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* modify nav link basic style, increase selector priority */
+.main-nav a.nav-link, 
+.main-nav .nav-item.dropdown span,
+.dropdown-content div {
+  color: rgb(85, 133, 133) !important;  /* use !important to ensure style takes effect */
+  transition: color 0.3s ease;
+  text-decoration: none;
+}
+
+/* modify color when hover */
+.main-nav a.nav-link:hover,
+.main-nav .nav-item.dropdown span:hover,
+.dropdown-content div:hover {
+  color: #007bff !important;  /* use !important to ensure style takes effect */
+}
+
+/* dropdown item style */
+.dropdown-content div {
+  cursor: pointer;
+}
+
+/* ensure all nav links have no border */
+.main-nav a.nav-link, 
+.main-nav .nav-item.dropdown,
+.main-nav .nav-item {
+  border: none !important;  /* use !important to ensure style takes effect */
+  color: rgb(85, 133, 133);
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 500;
+  padding: 0.5rem 0;
+  display: flex;
+  align-items: center;
+  height: 35px;
+}

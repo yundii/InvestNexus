@@ -1,0 +1,299 @@
+.profile-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.profile-photo-container {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  cursor: pointer;
+}
+
+.profile-photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.photo-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 50%;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  color: white;
+}
+
+.profile-photo-container:hover .photo-overlay {
+  display: flex;
+}
+
+.profile-info {
+  margin-top: 2rem;
+}
+
+.info-item {
+  margin: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.update-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: #007bff;
+  color: white;
+}
+
+.btn:hover {
+  background-color: #0056b3;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  min-width: 300px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.modal.error {
+  border-left: 4px solid #ff4444;
+}
+
+.modal.success {
+  border-left: 4px solid #44ff44;
+}
+
+.modal-content {
+  text-align: center;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  color: #333;
+}
+
+.modal-content p {
+  margin: 15px 0;
+}
+
+.modal-content button {
+  margin-top: 10px;
+}
+
+/* responsive design */
+/* large screen (1200px and above) */
+@media (min-width: 1200px) {
+    .profile-container {
+        max-width: 1000px;
+        padding: 3rem;
+    }
+
+    .profile-photo-container {
+        width: 180px;
+        height: 180px;
+    }
+}
+
+/* laptop and monitor (992px - 1199px) */
+@media (max-width: 1199px) {
+    .profile-container {
+        max-width: 90%;
+        margin: 1.5rem auto;
+        padding: 2rem;
+    }
+}
+
+/* tablet (768px - 991px) */
+@media (max-width: 991px) {
+    .profile-container {
+        max-width: 95%;
+        margin: 1rem auto;
+        padding: 1.5rem;
+    }
+
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1.5rem;
+    }
+
+    .profile-photo-container {
+        width: 140px;
+        height: 140px;
+        margin: 0 auto;
+    }
+
+    .update-buttons {
+        justify-content: center;
+    }
+
+    .info-item {
+        flex-direction: column;
+        text-align: center;
+        gap: 0.5rem;
+    }
+}
+
+/* large phone (576px - 767px) */
+@media (max-width: 767px) {
+    .profile-container {
+        margin: 0.8rem auto;
+        padding: 1.2rem;
+        border-radius: 6px;
+    }
+
+    .profile-photo-container {
+        width: 120px;
+        height: 120px;
+    }
+
+    .profile-info {
+        margin-top: 1.5rem;
+    }
+
+    .info-item {
+        margin: 0.8rem 0;
+    }
+
+    .btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+    }
+
+    .modal {
+        width: 90%;
+        min-width: auto;
+        padding: 15px;
+    }
+
+    .modal-content h3 {
+        font-size: 1.2rem;
+    }
+
+    .modal-content p {
+        font-size: 0.9rem;
+        margin: 12px 0;
+    }
+}
+
+/* small phone (575px and below) */
+@media (max-width: 575px) {
+    .profile-container {
+        margin: 0.5rem auto;
+        padding: 1rem;
+        border-radius: 4px;
+    }
+
+    .profile-photo-container {
+        width: 100px;
+        height: 100px;
+    }
+
+    .profile-header {
+        margin-bottom: 1.5rem;
+        gap: 1rem;
+    }
+
+    .update-buttons {
+        flex-direction: column;
+        gap: 0.8rem;
+        width: 100%;
+    }
+
+    .btn {
+        width: 100%;
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .info-item {
+        margin: 0.6rem 0;
+        font-size: 0.9rem;
+    }
+
+    .modal {
+        width: 95%;
+        padding: 12px;
+    }
+
+    .modal-content h3 {
+        font-size: 1.1rem;
+    }
+
+    .modal-content p {
+        font-size: 0.85rem;
+        margin: 10px 0;
+    }
+
+    .photo-overlay {
+        font-size: 0.8rem;
+    }
+}
+
+/* landscape mode optimization */
+@media (max-height: 500px) and (orientation: landscape) {
+    .profile-container {
+        margin: 0.5rem auto;
+        padding: 1rem;
+    }
+
+    .profile-header {
+        flex-direction: row;
+        gap: 2rem;
+    }
+
+    .profile-photo-container {
+        width: 80px;
+        height: 80px;
+    }
+
+    .modal {
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .update-buttons {
+        flex-direction: row;
+    }
+}

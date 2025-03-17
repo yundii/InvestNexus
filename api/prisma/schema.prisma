@@ -1,0 +1,60 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            Int              @id @default(autoincrement()) @map("user_id")
+  userName      String           @map("user_name")
+  password      String
+  email         String           @unique
+  phoneNumber   String           @map("phone_number")
+  userPhoto     String?          @map("user_photo")
+  likeList      String?          @map("like_list")
+  purchasedStock PurchasedStock[]
+
+  @@map("user")
+}
+
+model PurchasedStock {
+  id             Int      @id @default(autoincrement()) @map("purchased_stock_id")
+  userId         Int      @map("user_id")
+  stockId        Int      @map("stock_id")
+  purchasedDate  DateTime @map("purchased_date")
+  purchasedPrice Decimal  @map("purchased_price")
+  latestPrice    Decimal  @map("latest_price")
+  number         Int
+  user           User     @relation(fields: [userId], references: [id])
+  stock          Stock    @relation(fields: [stockId], references: [id])
+
+  @@map("purchased_stock")
+}
+
+model FinanceNews {
+  id         Int      @id @default(autoincrement()) @map("news_id")
+  stockId    Int?     @map("stock_id")
+  title      String
+  date       DateTime
+  topic      String
+  source     String
+  news_url   String   @map("news_url")
+  banner_url String?  @map("banner_url")
+  stock      Stock?   @relation(fields: [stockId], references: [id])
+
+  @@map("finance_news")
+}
+
+model Stock {
+  id              Int             @id @default(autoincrement()) @map("stock_id")
+  stockName       String          @map("stock_name")
+  openPrice       Decimal         @map("open_price")
+  closePrice    Decimal         @map("close_price")
+  purchasedStocks PurchasedStock[]
+  financeNews     FinanceNews[]
+
+  @@map("stock")
+}

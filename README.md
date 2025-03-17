@@ -1,7 +1,7 @@
-# CS 5610 Final Project - InvestNuxus
+# CS 5610 Final Project - InvestNexus
 
 ## Project Description 
-The website we intended to create is a stock management website “Wealth Management”. It allows users to create an account or log in to an existing one, providing a streamlined interface with sections for the homepage, explore, purchased stocks, finance news, and stock analysis. 
+The website we intended to create is a stock management website “InvestNexus”. It allows users to create an account or log in to an existing one, providing a streamlined interface with sections for the homepage, explore, purchased stocks, finance news, and stock analysis. 
 
 ## Demo 🎬
 [Demo Video](https://drive.google.com/file/d/14Xg-BQrA_z4vJOJH_D911VgNJ42Cf3ZM/view?usp=sharing)

@@ -7,6 +7,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcrypt";
+import rateLimit from "express-rate-limit";
 import {searchStock, fetchAndStoreStockNews, fetchTopicNews} from './services/stockService.js';
 import multer from 'multer';
 import path from 'path';
@@ -23,6 +24,18 @@ const io = new Server(server, {
     credentials: true
   }
 });
+
+// Rate limiting middleware
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to all routes
+app.use(limiter);
 
 // Redis client setup
 const redisClient = Redis.createClient({
@@ -743,6 +756,93 @@ app.get("/portfolio", requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error fetching portfolio:', error);
     res.status(500).json({ error: "Failed to fetch portfolio" });
+  }
+});
+
+// Portfolio purchase endpoint
+app.post("/portfolio/purchase", requireAuth, async (req, res) => {
+  const { stockName, purchasedPrice, number } = req.body;
+  
+  try {
+    const stockData = await searchStock(stockName);
+    
+    let stock = await prisma.stock.findFirst({
+      where: { stockName: stockData.stockName }
+    });
+
+    if (!stock) {
+      stock = await prisma.stock.create({
+        data: {
+          stockName: stockData.stockName,
+          openPrice: stockData.openPrice,
+          closePrice: stockData.closePrice
+        }
+      });
+    }
+
+    const newPurchase = await prisma.purchasedStock.create({
+      data: {
+        userId: req.userId,
+        stockId: stock.id,
+        purchasedDate: new Date(),
+        purchasedPrice: purchasedPrice,
+        latestPrice: stockData.closePrice,
+        number: number
+      },
+      include: {
+        stock: true
+      }
+    });
+
+    // Fetch news for the purchased stock
+    try {
+      await fetchAndStoreStockNews(stock.stockName, prisma);
+    } catch (newsError) {
+      console.error('Error fetching news for purchased stock:', newsError);
+    }
+
+    res.status(201).json(newPurchase);
+  } catch (error) {
+    console.error('Error in portfolio purchase:', error);
+    res.status(400).json({ error: "Failed to create purchase record" });
+  }
+});
+
+// Market overview endpoint for homepage
+app.get("/market-overview", async (req, res) => {
+  try {
+    // Get trending stocks (most purchased)
+    const trendingStocks = await prisma.purchasedStock.groupBy({
+      by: ['stockId'],
+      _count: {
+        stockId: true
+      },
+      orderBy: {
+        _count: {
+          stockId: 'desc'
+        }
+      },
+      take: 5,
+      include: {
+        stock: true
+      }
+    });
+
+    // Get latest news
+    const latestNews = await prisma.financeNews.findMany({
+      orderBy: {
+        date: 'desc'
+      },
+      take: 5
+    });
+
+    res.json({
+      trendingStocks: trendingStocks.map(item => item.stock),
+      latestNews
+    });
+  } catch (error) {
+    console.error('Error fetching market overview:', error);
+    res.status(500).json({ error: "Failed to fetch market overview" });
   }
 });
 

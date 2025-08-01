@@ -1,22 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthUser } from '../security/AuthContext';
 import '../style/portfolio.css';
 import PortfolioSearchContainer from '../components/PortfolioSearchContainer';
 import { FaTrash } from 'react-icons/fa';
 
 export default function Portfolio() {
-  const [purchasedStocks, setPurchasedStocks] = useState([]);
+  const [portfolioData, setPortfolioData] = useState({ portfolio: [], summary: {} });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [stockNews, setStockNews] = useState([]);
   const [currentNewsIndex, setCurrentNewsIndex] = useState(0);
   const [selectedStocks, setSelectedStocks] = useState([]);
   const navigate = useNavigate();
+  const { socket } = useAuthUser();
 
-  const fetchPurchasedStocks = async () => {
+  const fetchPortfolio = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/purchased-stocks', {
+      const response = await fetch('http://localhost:8000/portfolio', {
         credentials: 'include'
       });
       
@@ -25,7 +27,7 @@ export default function Portfolio() {
       }
       
       const data = await response.json();
-      setPurchasedStocks(data);
+      setPortfolioData(data);
     } catch (err) {
       console.error('Error fetching portfolio:', err);
       setError(err.message);
@@ -34,9 +36,63 @@ export default function Portfolio() {
     }
   };
 
+  // Listen for real-time stock price updates
+  useEffect(() => {
+    if (socket) {
+      socket.on('stock-price-update', (data) => {
+        setPortfolioData(prevData => {
+          const updatedPortfolio = prevData.portfolio.map(item => {
+            if (item.stock.stockName === data.symbol) {
+              const currentPrice = parseFloat(data.price);
+              const cost = parseFloat(item.purchasedPrice);
+              const shares = item.number;
+              
+              const currentValue = currentPrice * shares;
+              const totalCostForStock = cost * shares;
+              const profitLoss = currentValue - totalCostForStock;
+              const profitLossPercent = ((profitLoss / totalCostForStock) * 100);
+              
+              return {
+                ...item,
+                latestPrice: currentPrice,
+                currentValue,
+                totalCost: totalCostForStock,
+                profitLoss,
+                profitLossPercent
+              };
+            }
+            return item;
+          });
+          
+          // Recalculate summary
+          const totalValue = updatedPortfolio.reduce((sum, item) => sum + item.currentValue, 0);
+          const totalCost = updatedPortfolio.reduce((sum, item) => sum + item.totalCost, 0);
+          const totalProfitLoss = totalValue - totalCost;
+          const totalProfitLossPercent = totalCost > 0 ? ((totalProfitLoss / totalCost) * 100) : 0;
+          
+          return {
+            portfolio: updatedPortfolio,
+            summary: {
+              totalValue,
+              totalCost,
+              totalProfitLoss,
+              totalProfitLossPercent
+            }
+          };
+        });
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('stock-price-update');
+      }
+    };
+  }, [socket]);
+
   const fetchStockNews = useCallback(async () => {
     try {
-      const stockSymbols = purchasedStocks.map(ps => ps.stock.stockName);
+      const stockSymbols = portfolioData.portfolio.map(ps => ps.stock.stockName);
       const allNews = [];
 
       for (const symbol of stockSymbols) {
@@ -64,23 +120,23 @@ export default function Portfolio() {
     } catch (err) {
       console.error('Error fetching stock news:', err);
     }
-  }, [purchasedStocks]);
+  }, [portfolioData.portfolio]);
 
   useEffect(() => {
     const init = async () => {
-      await fetchPurchasedStocks();
+      await fetchPortfolio();
     };
     init();
   }, []);
 
   useEffect(() => {
     const fetchNews = async () => {
-      if (purchasedStocks.length > 0) {
+      if (portfolioData.portfolio.length > 0) {
         await fetchStockNews();
       }
     };
     fetchNews();
-  }, [purchasedStocks, fetchStockNews]);
+  }, [portfolioData.portfolio, fetchStockNews]);
 
   const handleSymbolClick = (symbol) => {
     navigate(`/stock/${symbol}`);
@@ -117,7 +173,7 @@ export default function Portfolio() {
         throw new Error('Failed to delete stocks');
       }
 
-      fetchPurchasedStocks();
+      fetchPortfolio();
       setSelectedStocks([]);
     } catch (err) {
       console.error('Error deleting stocks:', err);
@@ -152,7 +208,7 @@ export default function Portfolio() {
           <h2 className="text-2xl font-bold text-gray-800">
             My Portfolio
           </h2>
-          <PortfolioSearchContainer onStockAdded={fetchPurchasedStocks} />
+          <PortfolioSearchContainer onStockAdded={fetchPortfolio} />
         </div>
 
         {selectedStocks.length > 0 && (
@@ -162,6 +218,32 @@ export default function Portfolio() {
           >
             Delete Selected ({selectedStocks.length})
           </button>
+        )}
+
+        {/* Portfolio Summary */}
+        {portfolioData.summary && Object.keys(portfolioData.summary).length > 0 && (
+          <div className="portfolio-summary">
+            <div className="summary-card">
+              <h3>Total Value</h3>
+              <p className="summary-value">${portfolioData.summary.totalValue?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div className="summary-card">
+              <h3>Total Cost</h3>
+              <p className="summary-value">${portfolioData.summary.totalCost?.toFixed(2) || '0.00'}</p>
+            </div>
+            <div className="summary-card">
+              <h3>Total P&L</h3>
+              <p className={`summary-value ${portfolioData.summary.totalProfitLoss >= 0 ? 'positive' : 'negative'}`}>
+                ${portfolioData.summary.totalProfitLoss?.toFixed(2) || '0.00'}
+              </p>
+            </div>
+            <div className="summary-card">
+              <h3>Total P&L %</h3>
+              <p className={`summary-value ${portfolioData.summary.totalProfitLossPercent >= 0 ? 'positive' : 'negative'}`}>
+                {portfolioData.summary.totalProfitLossPercent?.toFixed(2) || '0.00'}%
+              </p>
+            </div>
+          </div>
         )}
 
         <div className="market-table-container">
@@ -180,13 +262,7 @@ export default function Portfolio() {
               </tr>
             </thead>
             <tbody>
-              {purchasedStocks.map((record) => {
-                const { totalGain, totalGainPercent } = calculateGains(
-                  record.purchasedPrice,
-                  record.latestPrice,
-                  record.number
-                );
-
+              {portfolioData.portfolio.map((record) => {
                 return (
                   <tr key={record.id}>
                     <td>
@@ -212,11 +288,11 @@ export default function Portfolio() {
                       {parseFloat(record.latestPrice).toFixed(2)}
                     </td>
                     <td>{record.number}</td>
-                    <td className={totalGainPercent >= 0 ? 'positive' : 'negative'}>
-                      {totalGainPercent.toFixed(2)}%
+                    <td className={record.profitLossPercent >= 0 ? 'positive' : 'negative'}>
+                      {record.profitLossPercent.toFixed(2)}%
                     </td>
-                    <td className={totalGain >= 0 ? 'positive' : 'negative'}>
-                      ${Math.abs(totalGain).toFixed(2)}
+                    <td className={record.profitLoss >= 0 ? 'positive' : 'negative'}>
+                      ${Math.abs(record.profitLoss).toFixed(2)}
                     </td>
                     <td>
                       <button

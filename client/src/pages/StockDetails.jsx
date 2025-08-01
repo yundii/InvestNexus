@@ -11,6 +11,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
+import { useAuthUser } from '../security/AuthContext';
 import '../style/stockDetails.css';
 import LikeButton from '../components/LikeButton';
 import AddStockButton from '../components/AddStockButton';
@@ -28,9 +29,12 @@ ChartJS.register(
 export default function StockDetails() {
   const { symbol } = useParams();
   const [chartData, setChartData] = useState(null);
+  const [stockData, setStockData] = useState(null);
   const [latestPrice, setLatestPrice] = useState(null);
   const [latestDateTime, setLatestDateTime] = useState(null);
   const [period, setPeriod] = useState('1D');
+  const [loading, setLoading] = useState(true);
+  const { socket } = useAuthUser();
 
   const getStockName = (fullSymbol) => {
     return fullSymbol.split(':')[0];
@@ -62,6 +66,45 @@ export default function StockDetails() {
       });
     }
   };
+
+  // Fetch stock details from our API
+  const fetchStockDetails = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`http://localhost:8000/stocks/${symbol}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Stock not found');
+      }
+      
+      const data = await response.json();
+      setStockData(data);
+      setLatestPrice(data.closePrice);
+    } catch (error) {
+      console.error('Error fetching stock details:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol]);
+
+  // Listen for real-time price updates
+  useEffect(() => {
+    if (socket) {
+      socket.on('stock-price-update', (data) => {
+        if (data.symbol === symbol) {
+          setLatestPrice(data.price);
+        }
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('stock-price-update');
+      }
+    };
+  }, [socket, symbol]);
 
   const fetchData = useCallback(async (selectedPeriod) => {
     try {
@@ -102,6 +145,10 @@ export default function StockDetails() {
   }, [symbol]);
 
   useEffect(() => {
+    fetchStockDetails();
+  }, [fetchStockDetails]);
+
+  useEffect(() => {
     fetchData(period);
   }, [period, fetchData]);
 
@@ -132,15 +179,27 @@ export default function StockDetails() {
     }
   };
 
+  if (loading) return <div>Loading...</div>;
+
   return (
     <div className="stock-details-container">
       <h1 className="stock-details-header">
-        {getStockName(symbol)} Stock
+        {stockData?.stockName || getStockName(symbol)} Stock
       </h1>
       <div className="action-buttons">
         <LikeButton symbol={getStockName(symbol)} />
         <AddStockButton symbol={getStockName(symbol)} />
       </div>
+      
+      {stockData && (
+        <div className="stock-info">
+          <div className="price-info">
+            <h2>Current Price: ${parseFloat(stockData.closePrice).toFixed(2)}</h2>
+            <p>Open Price: ${parseFloat(stockData.openPrice).toFixed(2)}</p>
+          </div>
+        </div>
+      )}
+      
       {latestPrice && latestDateTime && (
         <div className="latest-price-info">
           <p>Latest Price: ${latestPrice}</p>

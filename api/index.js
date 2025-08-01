@@ -10,8 +10,28 @@ import bcrypt from "bcrypt";
 import {searchStock, fetchAndStoreStockNews, fetchTopicNews} from './services/stockService.js';
 import multer from 'multer';
 import path from 'path';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import Redis from 'redis';
+import cron from 'node-cron';
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    credentials: true
+  }
+});
+
+// Redis client setup
+const redisClient = Redis.createClient({
+  url: process.env.REDIS_URL || 'redis://localhost:6379'
+});
+
+redisClient.on('error', (err) => console.log('Redis Client Error', err));
+redisClient.connect().catch(console.error);
+
 app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -20,6 +40,57 @@ app.use(cookieParser());
 
 const { PrismaClient } = pkg;
 const prisma = new PrismaClient();
+
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+  
+  socket.on('join-portfolio', (userId) => {
+    socket.join(`portfolio-${userId}`);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+// Background job to update stock prices every 30 seconds
+cron.schedule('*/30 * * * * *', async () => {
+  try {
+    // Get all stocks from database
+    const stocks = await prisma.stock.findMany();
+    
+    for (const stock of stocks) {
+      try {
+        const stockData = await searchStock(stock.stockName);
+        
+        // Update stock prices in database
+        await prisma.stock.update({
+          where: { id: stock.id },
+          data: {
+            openPrice: stockData.openPrice,
+            closePrice: stockData.closePrice
+          }
+        });
+        
+        // Cache the updated price in Redis for 30 seconds
+        await redisClient.setEx(`stock:${stock.stockName}`, 30, JSON.stringify(stockData));
+        
+        // Broadcast price update to all connected clients
+        io.emit('stock-price-update', {
+          symbol: stock.stockName,
+          price: stockData.closePrice,
+          openPrice: stockData.openPrice
+        });
+        
+      } catch (error) {
+        console.error(`Error updating ${stock.stockName}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Error in stock price update job:', error);
+  }
+});
 
 // Middleware to verify JWT token
 function requireAuth(req, res, next) {
@@ -39,6 +110,45 @@ function requireAuth(req, res, next) {
 // Test endpoint
 app.get("/ping", (req, res) => {
   res.send("pong");
+});
+
+// Stock search endpoint
+app.get("/stocks/search", async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q) {
+      return res.status(400).json({ error: "Search query is required" });
+    }
+    
+    const stockData = await searchStock(q);
+    res.json(stockData);
+  } catch (error) {
+    console.error('Error searching stock:', error);
+    res.status(404).json({ error: "Stock not found" });
+  }
+});
+
+// Stock details endpoint
+app.get("/stocks/:symbol", async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    
+    // Check Redis cache first
+    const cachedData = await redisClient.get(`stock:${symbol}`);
+    if (cachedData) {
+      return res.json(JSON.parse(cachedData));
+    }
+    
+    const stockData = await searchStock(symbol);
+    
+    // Cache the result for 30 seconds
+    await redisClient.setEx(`stock:${symbol}`, 30, JSON.stringify(stockData));
+    
+    res.json(stockData);
+  } catch (error) {
+    console.error('Error fetching stock details:', error);
+    res.status(404).json({ error: "Stock not found" });
+  }
 });
 
 // Register endpoint
@@ -584,6 +694,59 @@ app.get('/topic-news/:topic', requireAuth, async (req, res) => {
     }
 });
 
-app.listen(8000, () => {
+// Portfolio summary endpoint
+app.get("/portfolio", requireAuth, async (req, res) => {
+  try {
+    const purchasedStocks = await prisma.purchasedStock.findMany({
+      where: { userId: req.userId },
+      include: { stock: true }
+    });
+    
+    let totalValue = 0;
+    let totalCost = 0;
+    const portfolio = [];
+    
+    for (const purchase of purchasedStocks) {
+      const currentPrice = parseFloat(purchase.stock.closePrice);
+      const cost = parseFloat(purchase.purchasedPrice);
+      const shares = purchase.number;
+      
+      const currentValue = currentPrice * shares;
+      const totalCostForStock = cost * shares;
+      const profitLoss = currentValue - totalCostForStock;
+      const profitLossPercent = ((profitLoss / totalCostForStock) * 100);
+      
+      portfolio.push({
+        ...purchase,
+        currentValue,
+        totalCost: totalCostForStock,
+        profitLoss,
+        profitLossPercent
+      });
+      
+      totalValue += currentValue;
+      totalCost += totalCostForStock;
+    }
+    
+    const totalProfitLoss = totalValue - totalCost;
+    const totalProfitLossPercent = totalCost > 0 ? ((totalProfitLoss / totalCost) * 100) : 0;
+    
+    res.json({
+      portfolio,
+      summary: {
+        totalValue,
+        totalCost,
+        totalProfitLoss,
+        totalProfitLossPercent
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching portfolio:', error);
+    res.status(500).json({ error: "Failed to fetch portfolio" });
+  }
+});
+
+server.listen(8000, () => {
   console.log("Server running on http://localhost:8000 🎉 🚀");
+  console.log("WebSocket server ready for real-time updates");
 });

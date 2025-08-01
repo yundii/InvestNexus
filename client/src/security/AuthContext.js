@@ -1,9 +1,38 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { io } from "socket.io-client";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [socket, setSocket] = useState(null);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    const newSocket = io("http://localhost:8000", {
+      withCredentials: true
+    });
+
+    newSocket.on('connect', () => {
+      console.log('Connected to WebSocket server');
+    });
+
+    newSocket.on('stock-price-update', (data) => {
+      console.log('Stock price update:', data);
+      // You can emit this to components that need real-time updates
+      newSocket.emit('price-update-received', data);
+    });
+
+    newSocket.on('disconnect', () => {
+      console.log('Disconnected from WebSocket server');
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.close();
+    };
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -20,6 +49,12 @@ export const AuthProvider = ({ children }) => {
           ...userData,
           userPhoto: userData.userPhoto
         });
+        
+        // Join user's portfolio room for real-time updates
+        if (socket) {
+          socket.emit('join-portfolio', userData.id);
+        }
+        
         return true;
       }
       return false;
@@ -62,6 +97,7 @@ export const AuthProvider = ({ children }) => {
       logout, 
       register, 
       updateUser, 
+      socket,
       isAuthenticated: !!user 
     }}>
       {children}

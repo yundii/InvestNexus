@@ -1,0 +1,386 @@
+.nexus {
+  font-family: system-ui, sans-serif;
+  color: #20342e;
+  background: #f4f6f3;
+  font-size: 14px;
+}
+.nexus * {
+  box-sizing: border-box;
+}
+.nexus {
+  min-height: 100vh;
+  display: flex;
+}
+.nexus aside {
+  width: 235px;
+  position: fixed;
+  inset: 0 auto 0 0;
+  background: #102d25;
+  color: #eaf3ed;
+  padding: 36px 24px;
+}
+.nexus .brand {
+  font-size: 23px;
+  font-weight: 700;
+}
+.nexus .brand small {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #90b0a1;
+  margin-top: 10px;
+}
+.nexus .label {
+  margin: 58px 0 16px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #90b0a1;
+}
+.nexus nav {
+  display: grid;
+  gap: 8px;
+}
+.nexus nav button {
+  background: transparent;
+  text-align: left;
+  color: #b6cfc2;
+  border: 0;
+  padding: 14px;
+}
+.nexus nav button.active {
+  background: #24473b;
+  color: #fff;
+}
+.nexus .aside-bottom {
+  position: absolute;
+  bottom: 30px;
+  line-height: 2;
+  color: #acc8ba;
+}
+.nexus .dot {
+  display: inline-block;
+  background: #9ce0a9;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.nexus main {
+  margin-left: 235px;
+  width: calc(100% - 235px);
+  padding: 0 42px 40px;
+  max-width: 1700px;
+}
+.nexus header {
+  display: flex;
+  justify-content: space-between;
+  padding: 24px 0;
+  border-bottom: 1px solid #dbe2db;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #697c71;
+}
+.nexus .eyebrow {
+  color: #658571;
+  letter-spacing: 2px;
+  font-size: 10px;
+  margin-top: 34px;
+}
+.nexus h1 {
+  font-size: 34px;
+  letter-spacing: -1px;
+  margin: 12px 0 8px;
+}
+.nexus p {
+  color: #718176;
+  line-height: 1.6;
+}
+.nexus h2 {
+  font-size: 18px;
+  margin: 0 0 20px;
+}
+.nexus .stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 28px 0;
+}
+.nexus .card {
+  background: #fff;
+  border: 1px solid #dfe5de;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.nexus .stats .card {
+  margin: 0;
+}
+.nexus .metric {
+  font-size: 29px;
+  font-weight: 600;
+  margin: 14px 0 6px;
+}
+.nexus .muted,
+.nexus small {
+  color: #748579;
+  font-size: 12px;
+}
+.nexus .positive {
+  color: #278253;
+}
+.nexus .grid {
+  display: grid;
+  grid-template-columns: 1.8fr 1fr;
+  gap: 20px;
+}
+.nexus table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 12px;
+}
+.nexus th {
+  font-size: 10px;
+  color: #7f8e84;
+  letter-spacing: 1px;
+  font-weight: 500;
+}
+.nexus td,
+.nexus th {
+  padding: 14px 8px;
+  border-bottom: 1px solid #edf0eb;
+}
+.nexus button {
+  cursor: pointer;
+  border: 1px solid #d7e0d7;
+  border-radius: 6px;
+  background: #f5f8f3;
+  padding: 9px 12px;
+  color: #244737;
+  font: inherit;
+}
+.nexus button.primary {
+  background: #245a42;
+  color: white;
+  border: 0;
+}
+.nexus button:hover {
+  filter: brightness(0.95);
+}
+.nexus button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.nexus label {
+  display: grid;
+  gap: 7px;
+  margin: 14px 0;
+  font-size: 12px;
+}
+.nexus input,
+.nexus select {
+  padding: 11px;
+  border: 1px solid #d7e0d7;
+  border-radius: 6px;
+  background: white;
+  font: inherit;
+  width: 100%;
+}
+.nexus .tag {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  padding: 5px 7px;
+  background: #eef4ed;
+  white-space: nowrap;
+}
+.nexus .tag.FAILED,
+.nexus .tag.OPEN {
+  color: #ae5332;
+  background: #fff0e8;
+}
+.nexus .tag.SETTLED,
+.nexus .tag.FILLED {
+  color: #2f7950;
+  background: #e6f4e9;
+}
+.nexus .scroll {
+  overflow: auto;
+}
+.nexus .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.nexus .allocation {
+  height: 9px;
+  display: flex;
+  border-radius: 5px;
+  overflow: hidden;
+  margin: 14px 0;
+}
+.nexus .allocation span {
+  background: #4e8a65;
+}
+.nexus .activity {
+  border-left: 2px solid #d6e4d7;
+  padding: 6px 0 18px 16px;
+  font-size: 12px;
+}
+.nexus .activity small {
+  display: block;
+  margin-top: 6px;
+}
+.nexus .notice {
+  background: #fff0d7;
+  padding: 14px;
+  margin-top: 20px;
+  border-radius: 8px;
+}
+.nexus svg {
+  width: 100%;
+  height: 180px;
+}
+.nexus .chart-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #718176;
+}
+.nexus a {
+  color: #296144;
+}
+@media (max-width: 1000px) {
+  .nexus aside {
+    width: 180px;
+    padding: 24px 16px;
+  }
+  .nexus main {
+    margin-left: 180px;
+    width: calc(100% - 180px);
+    padding: 0 20px;
+  }
+  .nexus .grid {
+    grid-template-columns: 1fr;
+  }
+  .nexus .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .nexus {
+    display: block;
+  }
+  .nexus aside {
+    position: static;
+    width: 100%;
+    padding: 18px;
+  }
+  .nexus .brand small,
+  .nexus .label,
+  .nexus .aside-bottom {
+    display: none;
+  }
+  .nexus nav {
+    display: flex;
+    margin-top: 15px;
+  }
+  .nexus nav button {
+    padding: 9px;
+  }
+  .nexus main {
+    margin: 0;
+    width: 100%;
+    padding: 0 14px;
+  }
+  .nexus .metric {
+    font-size: 23px;
+  }
+  .nexus .card {
+    padding: 16px;
+  }
+  .nexus header {
+    font-size: 8px;
+  }
+  .nexus h1 {
+    font-size: 28px;
+  }
+}
+
+.nexus .login {
+  max-width: 520px;
+  width: 100%;
+  margin: 7vh auto;
+  padding: 32px;
+}
+.nexus .login h1 {
+  font-size: 32px;
+}
+.nexus .login .primary {
+  width: 100%;
+  margin: 12px 0;
+}
+.nexus .link-button {
+  border: 0;
+  background: transparent;
+  padding: 12px 0;
+}
+.nexus header small {
+  display: block;
+  margin-top: 5px;
+}
+.nexus .workspace {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.nexus .account-select {
+  margin: 0;
+  min-width: 170px;
+}
+.nexus .inline-form {
+  display: flex;
+  gap: 8px;
+}
+.nexus .inline-form input {
+  width: 80px;
+}
+.nexus aside {
+  z-index: 2;
+}
+.nexus main {
+  min-width: 0;
+}
+.nexus form button {
+  margin-top: 6px;
+}
+.nexus .notice {
+  line-height: 1.5;
+}
+.nexus h1 {
+  font-size: 30px;
+}
+.nexus header {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .nexus .login {
+    margin: 0;
+    padding: 24px;
+  }
+  .nexus nav {
+    flex-wrap: wrap;
+  }
+  .nexus header > .row {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .nexus .account-select {
+    flex: 1;
+  }
+  .nexus aside {
+    position: static;
+  }
+}

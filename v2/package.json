@@ -1,1 +1,39 @@
-{"name":"investnexus-v2-mvp","private":true,"type":"module","scripts":{"start":"node server.js","test":"node --test"},"engines":{"node":">=22"}}
+{
+  "name": "investnexus-v2",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node scripts/build-ui.mjs",
+    "typecheck": "tsc --noEmit",
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "dev": "node --env-file-if-exists=.env --import tsx src/server.ts",
+    "migrate": "node --env-file-if-exists=.env --import tsx scripts/migrate.ts",
+    "demo:seed": "node --env-file-if-exists=.env --import tsx scripts/seed.ts",
+    "db:local": "node --import tsx scripts/local-db.ts",
+    "test": "node --import tsx --test test/*.test.ts",
+    "test:integration": "node --env-file-if-exists=.env --import tsx --test test/*.integration.ts",
+    "worker": "node --env-file-if-exists=.env dist/worker.js",
+    "worker:retry": "node --env-file-if-exists=.env --import tsx scripts/retry-reports.ts",
+    "legacy:import": "node --env-file-if-exists=.env --import tsx scripts/import-legacy-users.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "amqplib": "^2.0.1",
+    "bcryptjs": "^3.0.3",
+    "pg": "^8.16.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.8",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.15.5",
+    "embedded-postgres": "^18.0.0-beta.15",
+    "esbuild": "^0.25.9",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

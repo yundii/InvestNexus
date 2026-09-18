@@ -1,4 +1,5 @@
 import React from "react";
+import Platform from "./platform/Platform";
 import * as ReactDOMClient from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./security/AuthContext";
@@ -20,6 +21,7 @@ root.render(
   <AuthProvider>
     <BrowserRouter>
       <Routes>
+        <Route path="/platform/*" element={<Platform />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="login" element={<Login />} />

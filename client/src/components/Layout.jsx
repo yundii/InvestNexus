@@ -84,6 +84,7 @@ export default function Layout() {
               }}>Most Actives</div>
             </div>
           </div>
+          <Link to="/platform" className="nav-link" onClick={handleNavClick}>Platform v2</Link>
           <Link to="/app/news" className="nav-link news-nav" onClick={handleNavClick}>News</Link>
           <Link to="/app/portfolio" className="nav-link portfolio-nav" onClick={handleNavClick}>Portfolio</Link>
           <Link to="/app/analytics" className="nav-link analytics-nav" onClick={handleNavClick}>Analyze</Link>

@@ -1,0 +1,48 @@
+name: InvestNexus v2
+on:
+  push:
+    paths: ['v2/**', 'client/src/platform/**', '.github/workflows/v2-ci.yml']
+  pull_request:
+    paths: ['v2/**', 'client/src/platform/**', '.github/workflows/v2-ci.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: investnexus
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: investnexus
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U investnexus"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      rabbitmq:
+        image: rabbitmq:4-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: investnexus
+          RABBITMQ_DEFAULT_PASS: ci_password
+        ports: ['5672:5672']
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+    defaults:
+      run:
+        working-directory: v2
+    env:
+      DATABASE_URL: postgres://investnexus:ci_password@127.0.0.1:5432/investnexus
+      RABBITMQ_URL: amqp://investnexus:ci_password@127.0.0.1:5672
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: v2/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm run test:integration

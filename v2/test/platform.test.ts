@@ -1,0 +1,100 @@
+import type {
+  State,
+  CommandData,
+  Role,
+  Side,
+  Order,
+  Trade,
+  Reconciliation,
+} from "../src/types.js";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { seed, command, portfolio } from "../src/platform.js";
+const run = (
+  s: State,
+  a: string,
+  d: CommandData = {},
+  role: Role = "investment"
+) => command(s, a, d, role) as Order & Trade & Reconciliation;
+function order(s: State, side: Side = "BUY", quantity = 100) {
+  const o = run(s, "create", {
+    symbol: "MSFT",
+    side,
+    quantity,
+    orderType: "MARKET",
+  });
+  run(s, "approve", { id: o.id });
+  return o;
+}
+test("partial fills settle exactly once and derive holdings from ledger", () => {
+  const s = seed(),
+    o = order(s);
+  const t = run(s, "execute", { id: o.id, quantity: 60 });
+  assert.equal(o.status, "PARTIALLY_FILLED");
+  run(s, "execute", { id: o.id, quantity: 40 });
+  assert.equal(o.status, "FILLED");
+  assert.equal(portfolio(s).positions.length, 0);
+  assert.throws(() => run(s, "settle", { id: t.id }, "operations"), /not due/);
+  run(s, "advance", {}, "operations");
+  for (const t of s.trades) run(s, "settle", { id: t.id }, "operations");
+  const p = portfolio(s);
+  assert.equal(p.positions[0].quantity, 100);
+  assert.equal(p.cash, 5899000);
+  assert.equal(p.value, 9999000);
+  assert.equal(s.snapshots.length, 2);
+  assert.throws(
+    () => run(s, "settle", { id: t.id }, "operations"),
+    /Already settled/
+  );
+});
+test("insufficient cash fails without ledger changes", () => {
+  const s = seed(),
+    o = order(s, "BUY", 1000),
+    t = run(s, "execute", { id: o.id });
+  run(s, "advance", {}, "operations");
+  run(s, "settle", { id: t.id }, "operations");
+  assert.equal(t.status, "FAILED");
+  assert.equal(s.ledger.length, 1);
+  assert.equal(s.snapshots.length, 0);
+});
+test("sell reduces weighted cost and cannot oversell", () => {
+  const s = seed(),
+    o = order(s),
+    t = run(s, "execute", { id: o.id });
+  run(s, "advance", {}, "operations");
+  run(s, "settle", { id: t.id }, "operations");
+  const sell = order(s, "SELL", 40),
+    st = run(s, "execute", { id: sell.id });
+  run(s, "advance", {}, "operations");
+  run(s, "settle", { id: st.id }, "operations");
+  assert.equal(portfolio(s).positions[0].quantity, 60);
+  assert.equal(portfolio(s).realized, 0);
+  const over = order(s, "SELL", 100),
+    ot = run(s, "execute", { id: over.id });
+  run(s, "advance", {}, "operations");
+  run(s, "settle", { id: ot.id }, "operations");
+  assert.equal(ot.reason, "Insufficient settled holdings");
+});
+test("validation, personas, reconciliation and required resolution note", () => {
+  const s = seed();
+  assert.throws(() =>
+    run(s, "create", {
+      symbol: "MSFT",
+      side: "BUY",
+      quantity: -1,
+      orderType: "MARKET",
+    })
+  );
+  assert.throws(() => run(s, "create", {}, "client"), /role/);
+  const e = run(s, "reconcile", { symbol: "MSFT", actual: 98 }, "operations");
+  assert.equal(e.difference, -98);
+  assert.throws(() => run(s, "resolve", { id: e.id, note: "" }, "operations"));
+  run(
+    s,
+    "resolve",
+    { id: e.id, note: "Broker confirmed stale file" },
+    "operations"
+  );
+  assert.equal(e.status, "RESOLVED");
+  assert.equal(s.events.at(-1).type, "ReconciliationResolved");
+});

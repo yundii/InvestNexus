@@ -1,53 +1,141 @@
-# InvestNexus v2 — local workflow MVP
+# InvestNexus v2 — PostgreSQL / TypeScript milestone
 
-原版保留在 `api/` 和 `client/`。v2 是独立、零依赖、可持久化的本地业务原型，验证 mini investment-management platform 的交易闭环，不是生产金融系统。
+本轮把本地 JSON 原型升级为 PostgreSQL 事务后端，并加入可信登录、账户权限、共享 React 工作区和异步报告。
 
-## 启动
+## 本地启动
 
-需要 Node.js 22 或以上：
+Node.js 22.13+；所有命令在 `v2/` 目录执行。
 
 ```sh
-cd v2
+npm ci
+cp .env.example .env
+npm run build
+```
+
+开一个终端运行数据库（二选一，不要同时占用 55432）：
+
+```sh
+docker compose up -d postgres
+# 或不使用 Docker，运行真正的本地 PostgreSQL：
+npm run db:local
+```
+
+数据库启动后：
+
+```sh
+npm run migrate
+npm run demo:seed
 npm start
-# http://localhost:4100
 ```
+
+另一个终端运行报告 worker：
 
 ```sh
-npm test
+npm run worker
 ```
 
-## 五分钟演示
+浏览器打开 http://localhost:4200。首次运行必须构建，`public/app.js`、`public/app.css`、`dist/` 是构建产物，不提交 Git。环境变量和本地数据库数据也不提交。
 
-1. Investment：创建 BUY 100 MSFT market order，Approve。
-2. 将 fill quantity 改为 60，Execute fill；再成交剩余 40。观察 PARTIALLY_FILLED → FILLED。
-3. Operations：Advance business date，逐笔 Settle。结算前持仓不变；结算后写入现金/证券及费用账本，生成报告快照。
-4. Reconciliation：MSFT 的 broker shares 输入 98。显示 internal 100 / broker 98，输入调查说明并 Resolve。处理记录不修改真实持仓。
-5. Client portal：查看持仓、配置、快照价值曲线、交易历史，Export report 下载 JSON。
-6. 创建 BUY 1000 MSFT，审批并成交，推进日期并结算，展示 Insufficient cash。失败不会写账本，可重试。
+## 演示用户
 
-## 已实现
+`.env.example` 的 `DEMO_PASSWORD` 为 `LocalDemo-2026!`。修改该值后首次 seed 才会设置对应密码；重复 seed 不覆盖已有用户密码或账户数据。
 
-- 分离 Order、Trade、Settlement；审批、限价条件、分批成交、重复结算保护。
-- 单一 USD 账户；金额以整数 cents 保存；整数股；每次成交 $5 费用。
-- T+1 工作日模拟时钟（跳过周末，不含交易所假期）。
-- 追加式现金/证券交易账本；持仓和加权成本由账本重放，卖出计算 realized P&L；费用单列。
-- 对账差异、处理说明、操作者和事件时间线。
-- 结算快照、初始资本收益、持仓配置、JSON 客户报告。
-- 服务端本地 JSON 持久化，写入临时文件后原子替换；提交前复制状态，失败不会提交部分变更。
-- SSE 推送刷新其他打开的浏览器；响应式三个 persona workspace。
+| 用户 | 工作区 | 账户 |
+| --- | --- | --- |
+| pm@investnexus.local | Investment / Client | Horizon Growth |
+| ops@investnexus.local | Operations / Client | Horizon Growth |
+| client@investnexus.local | Client（只读） | Horizon Growth |
+| other@investnexus.local | Investment / Client | Independent Growth |
 
-## 设计与边界
+注册创建自己的独立投资账户，初始模拟现金 $100,000，不会授予 Operations 权限。角色从 PostgreSQL membership 查询；请求中的 actor、persona 或 accountId 不能授予权限。
 
-`domain/platform.js` 实现业务命令及账本投影；`server.js` 是 HTTP/持久化适配器；`public/` 是浏览器界面。事件是同一事务内保存的审计事件，SSE 仅通知客户端刷新，**没有**声称使用 RabbitMQ、Redis 或独立后台 worker。服务仅监听 localhost。
+## 五分钟流程
 
-固定行情是演示数据，不代表当前市场；券商成交是手动模拟。Persona 是工作流选择，API 的 actor 可由请求指定，**不是身份认证或安全权限**。不要暴露到公网或使用真实客户信息。本地文件只支持单进程，账本是应用层追加式记录，不是双分录会计，也没有数据库级不可篡改保证。曲线是每次结算的快照，不是日行情收益；没有基准对比、现金流调整、TWR/IRR。未迁移原版用户或 MySQL 数据。
+1. PM 创建 BUY 100 MSFT，Approve，然后分 60 / 40 股执行。
+2. 切换 Operations 用户，Advance business date，逐笔 Settle。
+3. 核对 100 股持仓、$58,990 现金、$99,990 总价值（两笔成交各 $5 费用）。
+4. 对账输入 broker shares 98，生成 2 股差异，输入说明后 Resolve。处理说明不会直接改持仓。
+5. Client 查看持仓、配置、快照曲线；worker 完成报告后 Export report。
+6. PM 创建 BUY 1000 MSFT 并成交，Ops 推进日期后结算，展示 FAILED / Insufficient cash，无账本写入。
+7. 独立用户登录后看到自己的账户；直接请求别的 accountId 得到 403。
 
-## 下一迭代
+## 已实现的保证
 
-1. 保持业务测试，迁移到 TypeScript 和 PostgreSQL 事务，加入外键、唯一成交入账约束与数据库迁移。
-2. 接入原版登录，服务端可信 session、RBAC、账户隔离及幂等请求键。
-3. 同事务写 transactional outbox，RabbitMQ worker 消费结算/报告任务，采用幂等消费者和失败重试。
-4. MarketDataProvider 隔离真实行情，PostgreSQL 存历史、Redis 缓存；缓存不作为金融真相。
-5. React/Next.js 接入已有 API 合约、正式日收益和基准比较、Docker Compose 集成验证。
+- 金额整数 cents、整数股；订单和成交分离；市场/限价订单；分批成交。
+- 账户行锁串行化金融写入，防止并发超额成交/结算。
+- 一笔 PostgreSQL 事务内更新订单/成交/结算、追加账本和审计、生成快照及 outbox。
+- 幂等键按账户保存；同键同用户同内容返回原结果，换内容或用户返回 409。
+- 成交入账唯一约束；延迟约束要求已结算成交具有完整、金额/证券/数量匹配的两条入账。
+- 数据库触发器保护追加式账本、审计、快照和报告；持仓由账本重放。
+- HttpOnly / SameSite=Strict 会话 cookie；服务端保存 token 的哈希；8 小时过期；注销立即撤销。
+- 密码 scrypt；可兼容原版 bcrypt 哈希。注册密码 12–128 字符。
+- CSRF token 和 Origin 检查；读/写/SSE/report 全部验证账户成员关系。
+- 审计记录真实用户邮箱及外键 ID；SSE 按账户推送，PostgreSQL NOTIFY 支持多个 API 进程。
 
-为先验证完整流程，这个 MVP 没有提前引入部署和基础设施复杂性。
+## 报告与 RabbitMQ
+
+不配置 broker 时，`npm run worker` 直接消费 PostgreSQL outbox；结算仍是同步数据库事务，报告独立后台生成。
+
+```sh
+docker compose --profile messaging up -d
+```
+
+在 `.env` 加入：
+
+```dotenv
+RABBITMQ_URL=amqp://investnexus:investnexus_local@127.0.0.1:5672
+```
+
+重启 worker。RabbitMQ 模式使用 durable queue、persistent message、publisher confirm。先写数据库 outbox，再发布；消费者按 snapshot 唯一键幂等写报告，提交后 ack。失败采用最多 5 次处理尝试、退避和死信队列。连接中断时 worker 退出，重启后继续；部署时应由进程管理器重启。
+
+默认队列 `investnexus.reports`，死信 `investnexus.reports.dead`。`RABBITMQ_QUEUE` 可以指定隔离的部署队列。失败任务排查修复后：
+
+```sh
+npm run worker:retry
+```
+
+该命令把耗尽重试的未完成任务重新排队。报告挂起时导出返回 409，客户端显示后台处理状态；已入账的资产数据仍可查询。
+
+## 接入原版 React
+
+```sh
+cd ../client
+npm ci
+npm start
+```
+
+访问 http://localhost:3000/platform。共享组件位于 `client/src/platform/`，开发代理连接 v2 4200 API（`.env.example` 配置了 `TRUSTED_ORIGINS=http://localhost:3000`）；原版页面仍连接旧 8000 API，互不自动迁移。生产整合需要同源反向代理 `/api` 到 v2 服务。
+
+## 迁移原版用户
+
+提供显式导入，保留原有 bcrypt 密码，不读取或生成明文密码。原 MySQL 服务可用且配置了 `api/.env` 后：
+
+```sh
+cd ../api
+npm ci
+node scripts/export-users.js /private/tmp/investnexus-legacy-users.json
+cd ../v2
+npm run legacy:import -- /private/tmp/investnexus-legacy-users.json
+```
+
+导出文件包含身份和凭据哈希，必须私密保存；脚本以 0600 创建并拒绝覆盖已有文件。完成后由你妥善移除。导入是一笔事务、按旧用户 ID 幂等；遇到 v2 已存在同邮箱会整体拒绝，避免误绑定身份。导入用户获得新的独立模拟账户及 Investment/Client 权限。旧 purchasedStock 没有完整订单/结算来源，因此不伪造历史账本，也不自动迁移旧持仓。旧 JSON 原型的本地文件同样保留，不自动导入。
+
+## 测试
+
+```sh
+npm run build
+npm test
+npm run test:integration
+```
+
+集成测试使用独立随机命名数据库，结束后清理，不使用演示账户的数据。测试数据库用户需要 CREATEDB；生产应用不应授予这个权限。配置 `RABBITMQ_URL` 会额外执行真实 broker 的发布/消费/重复投递测试；无 broker 时该项明确跳过。
+
+本机验证了 TypeScript / 共享 React 构建、原版 React 构建、领域测试、真实 PostgreSQL 集成测试。GitHub Actions 配置 PostgreSQL + RabbitMQ，覆盖 broker 集成；本机没有 Docker/RabbitMQ，未在本机验证该模式。
+
+## 实现边界
+
+固定模拟行情和券商；T+1 工作日不处理交易所节假日；每成交 $5。收益基于初始资本和结算快照；无日行情收益、基准对比、TWR/IRR。realized P&L 为买卖价差，手续费单独展示。
+
+本轮未加入 Redis 或真实行情。数据库模型使用独立关系表、外键和约束，部分领域详情保存在 JSONB payload。账本不是双分录会计，数据库 owner 可以修改触发器；没有声称防篡改审计。
+
+服务仍只监听 localhost。正式部署需要 HTTPS（`COOKIE_SECURE=true`）、私密数据库/队列凭据、最小权限数据库角色、备份恢复、共享限流及监控。当前登录限流保存在单 API 进程内，不能替代分布式限流。

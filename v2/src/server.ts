@@ -13,6 +13,11 @@ import {
   memberships,
   revoke,
 } from "./auth.js";
+import {
+  cachedMarket,
+  invalidateMarketCache,
+  closeMarketCache,
+} from "./market-cache.js";
 import { stateFor, execute, membership } from "./repository.js";
 const publicRoot = fileURLToPath(new URL("../public/", import.meta.url));
 const port = Number(process.env.PORT ?? 4200);
@@ -137,20 +142,43 @@ export function createServer() {
         const accountId = safeUuid(url.searchParams.get("accountId"));
         if (url.pathname === "/api/state" && req.method === "GET")
           return json(200, await stateFor(user, accountId));
+        if (url.pathname === "/api/market" && req.method === "GET") {
+          const s = await stateFor(user, accountId);
+          return json(200, await cachedMarket(s.priceSet!));
+        }
+        if (url.pathname === "/api/market/cache" && req.method === "POST") {
+          const roles = await transaction(
+            (c) => membership(c, user.id, accountId),
+            true
+          );
+          if (!roles.includes("operations"))
+            throw new AppError(403, "Requires operations role");
+          return json(200, await invalidateMarketCache());
+        }
         if (url.pathname === "/api/report" && req.method === "GET") {
           const s = await stateFor(user, accountId);
           res.setHeader(
             "Content-Disposition",
             'attachment; filename="investnexus-report.json"'
           );
-          if (s.reportStatus.pending)
+          const daily = url.searchParams.get("scope") === "daily";
+          if (
+            daily &&
+            !s.reportStatus.latestDaily &&
+            !s.reportStatus.dailyPending
+          )
+            throw new AppError(
+              409,
+              "Close a reconciled daily valuation before exporting a performance report"
+            );
+          if (daily ? s.reportStatus.dailyPending : s.reportStatus.pending)
             throw new AppError(
               409,
               "Report is being prepared by the worker. Try again shortly."
             );
           return json(
             200,
-            s.reportStatus.latest ?? {
+            (daily ? s.reportStatus.latestDaily : s.reportStatus.latest) ?? {
               simulation: true,
               accountId,
               date: s.date,
@@ -241,7 +269,13 @@ export async function start() {
   const listener = new pg.Client({ connectionString: databaseUrl });
   await listener.connect();
   await listener.query("LISTEN account_updated");
+  await listener.query("LISTEN market_updated");
   listener.on("notification", (m) => {
+    if (m.channel === "market_updated") {
+      for (const group of streams.values())
+        for (const res of group) res.write("data: updated\n\n");
+      return;
+    }
     if (m.payload)
       for (const res of streams.get(m.payload) ?? [])
         res.write("data: updated\n\n");
@@ -257,6 +291,7 @@ export async function start() {
   const close = () => {
     for (const group of streams.values()) for (const res of group) res.end();
     server.close(async () => {
+      await closeMarketCache();
       await listener.end();
       await pool.end();
       process.exit(0);

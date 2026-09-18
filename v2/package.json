@@ -1,6 +1,6 @@
 {
   "name": "investnexus-v2",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,9 @@
     "test:integration": "node --env-file-if-exists=.env --import tsx --test test/*.integration.ts",
     "worker": "node --env-file-if-exists=.env dist/worker.js",
     "worker:retry": "node --env-file-if-exists=.env --import tsx scripts/retry-reports.ts",
-    "legacy:import": "node --env-file-if-exists=.env --import tsx scripts/import-legacy-users.ts"
+    "legacy:import": "node --env-file-if-exists=.env --import tsx scripts/import-legacy-users.ts",
+    "market:worker": "node --env-file-if-exists=.env dist/market-worker.js",
+    "market:refresh": "node --env-file-if-exists=.env --import tsx scripts/refresh-market.ts"
   },
   "engines": {
     "node": ">=22"
@@ -25,7 +27,8 @@
     "bcryptjs": "^3.0.3",
     "pg": "^8.16.3",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "redis": "^6.2.1"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.8",

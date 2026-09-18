@@ -3,6 +3,10 @@ import type { State, Role, Identity, CommandData } from "./types.js";
 import { AppError } from "./types.js";
 import { transaction } from "./database.js";
 import { command, portfolio, securities } from "./platform.js";
+import { pricesAsOf, priceMap } from "./market.js";
+import { providerName } from "./market-provider.js";
+import { reconcileBook } from "./reconciliation.js";
+import { closeValuation, persistDaily } from "./valuation.js";
 import { createHash, randomUUID } from "node:crypto";
 export async function membership(
   c: PoolClient,
@@ -43,7 +47,16 @@ export async function load(c: PoolClient, accountId: string): Promise<State> {
     quantity: e.quantity,
     at: e.occurred_at.toISOString(),
   }));
+  const priceSet = await pricesAsOf(c, date.rows[0].date);
+  const version = await c.query(
+    "SELECT coalesce(max(seq),0) AS version FROM ledger_entries WHERE account_id=$1",
+    [accountId]
+  );
   return {
+    priceSet,
+    prices: priceMap(priceSet),
+    ledgerVersion: Number(version.rows[0].version),
+    reconciliationRuns: await rows("reconciliation_runs"),
     date: date.rows[0].date,
     orders: await rows("orders"),
     trades: await rows("trades"),
@@ -65,13 +78,48 @@ export async function stateFor(user: Identity, accountId: string) {
       "SELECT count(*) AS count,max(last_error) AS error FROM outbox_events WHERE account_id=$1 AND completed_at IS NULL",
       [accountId]
     );
+    const daily = (
+      await c.query(
+        "SELECT payload FROM daily_valuations WHERE account_id=$1 ORDER BY valuation_date",
+        [accountId]
+      )
+    ).rows.map((r) => r.payload);
+    const latestDaily =
+      (
+        await c.query(
+          "SELECT r.payload FROM generated_reports r JOIN daily_valuations d ON d.snapshot_id=r.snapshot_id WHERE r.account_id=$1 ORDER BY d.valuation_date DESC LIMIT 1",
+          [accountId]
+        )
+      ).rows[0]?.payload ?? null;
+    const dailyPending = (
+      await c.query(
+        "SELECT count(*) AS count FROM outbox_events o JOIN daily_valuations d ON d.snapshot_id=o.snapshot_id WHERE o.account_id=$1 AND o.completed_at IS NULL",
+        [accountId]
+      )
+    ).rows[0].count;
+    const jobs = (
+      await c.query(
+        "SELECT id,status,error,created_at,to_char(requested_date,'YYYY-MM-DD') AS date FROM market_refresh_jobs WHERE account_id=$1 ORDER BY created_at DESC LIMIT 5",
+        [accountId]
+      )
+    ).rows;
     return {
+      daily,
+      performance: daily.at(-1)?.performance ?? null,
+      dayClosed: daily.some((d) => d.date === s.date),
+      marketJobs: jobs,
       ...s,
       roles,
       portfolio: portfolio(s),
-      securities,
+      securities: securities.map((sec) => ({
+        ...sec,
+        price: s.prices![sec.symbol] ?? null,
+        ...s.priceSet!.quotes.find((q) => q.symbol === sec.symbol),
+      })),
       reportStatus: {
         pending: Number(queued.rows[0].count),
+        dailyPending: Number(dailyPending),
+        latestDaily,
         lastError: queued.rows[0].error,
         latest: reports.rows[0]?.payload ?? null,
       },
@@ -128,7 +176,36 @@ export async function execute(
     }
     const s = await load(c, accountId);
     const before = structuredClone(s);
-    const result = command(s, action, data, role);
+    const closed = (
+      await c.query(
+        "SELECT 1 FROM daily_valuations WHERE account_id=$1 AND valuation_date=$2",
+        [accountId, s.date]
+      )
+    ).rowCount;
+    if (closed && !["advance", "resolve", "refreshMarket"].includes(action))
+      throw new AppError(
+        409,
+        "Business date is closed; advance to the next date"
+      );
+    let result;
+    if (action === "refreshMarket") {
+      const id = randomUUID();
+      await c.query(
+        "INSERT INTO market_refresh_jobs(id,account_id,requested_date,provider,requested_by) VALUES($1,$2,$3,$4,$5)",
+        [id, accountId, s.date, providerName(), user.id]
+      );
+      s.events.push({
+        id: randomUUID(),
+        type: "MarketRefreshRequested",
+        entity: id,
+        actor: role,
+        at: new Date().toISOString(),
+      });
+      result = { id, status: "PENDING" };
+    } else if (action === "reconcileBook") result = reconcileBook(s, data);
+    else if (action === "closeValuation")
+      result = await closeValuation(c, accountId, s);
+    else result = command(s, action, data, role);
     await c.query("UPDATE accounts SET business_date=$2 WHERE id=$1", [
       accountId,
       s.date,
@@ -174,6 +251,13 @@ export async function execute(
           e.at,
         ]
       );
+    for (const run of s.reconciliationRuns.slice(
+      before.reconciliationRuns.length
+    ))
+      await c.query(
+        "INSERT INTO reconciliation_runs(id,account_id,business_date,ledger_version,payload) VALUES($1,$2,$3,$4,$5)",
+        [run.id, accountId, run.date, run.ledgerVersion, run]
+      );
     for (const e of s.exceptions) {
       const old = before.exceptions.find((x) => x.id === e.id);
       if (JSON.stringify(old) === JSON.stringify(e)) continue;
@@ -195,6 +279,7 @@ export async function execute(
         "INSERT INTO portfolio_snapshots(id,account_id,payload) VALUES($1,$2,$3)",
         [snapshot.id, accountId, snapshot]
       );
+      if (snapshot.kind === "DAILY") await persistDaily(c, accountId, snapshot);
       await c.query(
         "INSERT INTO outbox_events(id,account_id,snapshot_id,payload) VALUES($1,$2,$3,$4)",
         [
@@ -205,6 +290,10 @@ export async function execute(
             simulation: true,
             accountId,
             snapshot,
+            performance: snapshot.performance ?? null,
+            reconciliation: snapshot.reconciliation ?? null,
+            priceSet: snapshot.priceSet ?? null,
+            reportKind: snapshot.kind ?? "SETTLEMENT",
             transactions: s.trades.filter((t) => t.status === "SETTLED"),
           },
         ]

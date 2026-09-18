@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./platform.css";
 const money = (cents) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    cents / 100
-  );
+  cents === null || !Number.isFinite(cents)
+    ? "—"
+    : new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+      }).format(cents / 100);
 function Status({ value }) {
   return <span className={`tag ${value}`}>{value.replaceAll("_", " ")}</span>;
 }
@@ -210,7 +213,9 @@ export default function Platform({ apiBase = "" }) {
   const cmd = (action, data = {}) => submitCommand(action, data);
   async function exportReport() {
     try {
-      const report = await request("/api/report?accountId=" + accountId);
+      const report = await request(
+        "/api/report?scope=daily&accountId=" + accountId
+      );
       const a = document.createElement("a");
       a.href = URL.createObjectURL(
         new Blob([JSON.stringify(report, null, 2)], {
@@ -414,11 +419,13 @@ export default function Platform({ apiBase = "" }) {
                 [
                   "Unrealized P&L",
                   money(p.unrealized),
-                  "Fixed simulation quotes",
+                  "Market-price valuation",
                 ],
                 [
                   "Total return",
-                  p.returnPct.toFixed(3) + "%",
+                  p.returnPct === null
+                    ? "Unavailable"
+                    : p.returnPct.toFixed(3) + "%",
                   "Since opening deposit",
                 ],
               ].map(([label, value, sub]) => (
@@ -429,6 +436,31 @@ export default function Platform({ apiBase = "" }) {
                 </div>
               ))}
             </div>
+            <section className="card market-health">
+              <div className="row">
+                <h2>Market & valuation</h2>
+                <Status value={p.valuationStatus} />
+              </div>
+              <p className="muted">
+                {state.priceSet?.provider === "mock"
+                  ? "Deterministic simulation prices"
+                  : "Alpha Vantage daily close prices"}{" "}
+                · Business date {state.date}
+                {state.dayClosed ? " · Closed valuation published" : ""}
+              </p>
+              {state.priceSet?.lastError && (
+                <p className="notice">
+                  Refresh failed: {state.priceSet.lastError}. Last available
+                  prices are retained.
+                </p>
+              )}
+              {p.valuationStatus !== "FRESH" && (
+                <p>
+                  Prices are missing or from an earlier trading date. Daily
+                  reporting requires a complete current-date price set.
+                </p>
+              )}
+            </section>
             <fieldset disabled={busy || !!pending} className="workspace">
               {view === "investment" && <Investment state={state} cmd={cmd} />}
               {view === "operations" && <Operations state={state} cmd={cmd} />}
@@ -462,7 +494,9 @@ function Holdings({ positions }) {
             <td>{p.quantity}</td>
             <td>{money(p.averageCost)}</td>
             <td>{money(p.marketValue)}</td>
-            <td>{money(p.marketValue - p.cost)}</td>
+            <td>
+              {money(p.marketValue === null ? null : p.marketValue - p.cost)}
+            </td>
           </tr>
         ))}
       </Table>
@@ -492,12 +526,13 @@ function Investment({ state, cmd }) {
             <h2>
               Market watch <small>/ simulation quotes</small>
             </h2>
-            <Table headers={["SECURITY", "COMPANY", "QUOTE"]}>
+            <Table headers={["SECURITY", "COMPANY", "QUOTE", "AS OF"]}>
               {state.securities.map((s) => (
                 <tr key={s.symbol}>
                   <td>{s.symbol}</td>
                   <td>{s.name}</td>
                   <td>{money(s.price)}</td>
+                  <td>{s.asOf || "Missing"}</td>
                 </tr>
               ))}
             </Table>
@@ -507,53 +542,55 @@ function Investment({ state, cmd }) {
         <section className="card">
           <h2>Create order</h2>
           <form onSubmit={create}>
-            <label>
-              Security
-              <select name="symbol">
-                {state.securities.map((s) => (
-                  <option key={s.symbol}>{s.symbol}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Side
-              <select name="side">
-                <option>BUY</option>
-                <option>SELL</option>
-              </select>
-            </label>
-            <label>
-              Shares
-              <input
-                name="quantity"
-                type="number"
-                min="1"
-                max="100000"
-                step="1"
-                defaultValue="100"
-                required
-              />
-            </label>
-            <label>
-              Order type
-              <select value={type} onChange={(e) => setType(e.target.value)}>
-                <option>MARKET</option>
-                <option>LIMIT</option>
-              </select>
-            </label>
-            {type === "LIMIT" && (
+            <fieldset disabled={state.dayClosed} className="workspace">
               <label>
-                Limit price (USD)
+                Security
+                <select name="symbol">
+                  {state.securities.map((s) => (
+                    <option key={s.symbol}>{s.symbol}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Side
+                <select name="side">
+                  <option>BUY</option>
+                  <option>SELL</option>
+                </select>
+              </label>
+              <label>
+                Shares
                 <input
-                  name="limit"
+                  name="quantity"
                   type="number"
-                  min="0.01"
-                  step="0.01"
+                  min="1"
+                  max="100000"
+                  step="1"
+                  defaultValue="100"
                   required
                 />
               </label>
-            )}
-            <button className="primary">Create order →</button>
+              <label>
+                Order type
+                <select value={type} onChange={(e) => setType(e.target.value)}>
+                  <option>MARKET</option>
+                  <option>LIMIT</option>
+                </select>
+              </label>
+              {type === "LIMIT" && (
+                <label>
+                  Limit price (USD)
+                  <input
+                    name="limit"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  />
+                </label>
+              )}
+              <button className="primary">Create order →</button>
+            </fieldset>
           </form>
           <p className="muted">
             Approval precedes execution. T+1 weekdays. $5 fee per fill.
@@ -580,7 +617,10 @@ function Investment({ state, cmd }) {
                 </td>
                 <td>
                   {o.status === "PENDING" ? (
-                    <button onClick={() => cmd("approve", { id: o.id })}>
+                    <button
+                      disabled={state.dayClosed}
+                      onClick={() => cmd("approve", { id: o.id })}
+                    >
                       Approve
                     </button>
                   ) : ["APPROVED", "PARTIALLY_FILLED", "SUBMITTED"].includes(
@@ -609,7 +649,7 @@ function Investment({ state, cmd }) {
                         defaultValue={o.quantity - o.filled}
                         required
                       />
-                      <button>Execute fill</button>
+                      <button disabled={state.dayClosed}>Execute fill</button>
                     </form>
                   ) : (
                     "Complete"
@@ -623,8 +663,66 @@ function Investment({ state, cmd }) {
   );
 }
 function Operations({ state, cmd }) {
+  const [bookError, setBookError] = useState("");
+  function submitBook(event) {
+    event.preventDefault();
+    setBookError("");
+    const f = new FormData(event.currentTarget);
+    try {
+      const positions = JSON.parse(f.get("positions"));
+      if (!Array.isArray(positions))
+        throw Error("Positions must be a JSON array");
+      cmd("reconcileBook", {
+        asOf: state.date,
+        broker: f.get("broker"),
+        cash: Math.round(Number(f.get("cash")) * 100),
+        positions,
+      });
+    } catch (e) {
+      setBookError(e.message);
+    }
+  }
+  const latestRun = state.reconciliationRuns?.at(-1);
+
   return (
     <>
+      <section className="card">
+        <div className="row">
+          <div>
+            <h2>Daily valuation control</h2>
+            <p className="muted">
+              Refresh prices → reconcile cash and positions → close and publish.
+            </p>
+          </div>
+          <button onClick={() => cmd("refreshMarket")}>
+            Refresh market data
+          </button>
+        </div>
+        <p>
+          Business date {state.date} · {state.dayClosed ? "CLOSED" : "OPEN"} ·
+          Last full reconciliation:{" "}
+          {latestRun
+            ? latestRun.date + " / " + latestRun.broker
+            : "Not submitted"}
+        </p>
+        {state.marketJobs?.slice(0, 1).map((job) => (
+          <p key={job.id}>
+            Market refresh: <Status value={job.status} />
+            {job.error && " · " + job.error}
+          </p>
+        ))}
+        <button
+          className="primary"
+          disabled={state.dayClosed}
+          onClick={() => cmd("closeValuation")}
+        >
+          Close daily valuation & publish report
+        </button>
+        <p className="muted">
+          Closing freezes the day’s prices, ledger version and reconciliation
+          evidence. Advance the date before further trading or settlement.
+        </p>
+      </section>
       <section className="card">
         <div className="row">
           <h2>Settlement queue</h2>
@@ -663,7 +761,10 @@ function Operations({ state, cmd }) {
                 </td>
                 <td>
                   {t.status !== "SETTLED" ? (
-                    <button onClick={() => cmd("settle", { id: t.id })}>
+                    <button
+                      disabled={state.dayClosed}
+                      onClick={() => cmd("settle", { id: t.id })}
+                    >
                       {t.status === "FAILED" ? "Retry settlement" : "Settle"}
                     </button>
                   ) : (
@@ -676,38 +777,82 @@ function Operations({ state, cmd }) {
       </section>
       <div className="grid">
         <section className="card">
-          <h2>Reconciliation</h2>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              cmd("reconcile", {
-                symbol: f.get("symbol"),
-                actual: Number(f.get("actual")),
-              });
-            }}
-          >
-            <label>
-              Security
-              <select name="symbol">
-                {state.securities.map((s) => (
-                  <option key={s.symbol}>{s.symbol}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Broker-reported settled shares
-              <input
-                name="actual"
-                type="number"
-                min="0"
-                step="1"
-                defaultValue="98"
-                required
-              />
-            </label>
-            <button>Compare positions</button>
+          <h2>Cash & position reconciliation</h2>
+          <form onSubmit={submitBook}>
+            <fieldset className="workspace" disabled={state.dayClosed}>
+              <label>
+                Broker / statement source
+                <input
+                  name="broker"
+                  defaultValue="Simulated broker"
+                  maxLength="80"
+                  required
+                />
+              </label>
+              <label>
+                Broker-reported settled cash (USD)
+                <input
+                  name="cash"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={(state.portfolio.cash / 100).toFixed(2)}
+                  required
+                />
+              </label>
+              <label>
+                Broker-reported positions (JSON)
+                <textarea
+                  name="positions"
+                  rows="4"
+                  defaultValue='[{"symbol":"MSFT","quantity":98}]'
+                  required
+                />
+              </label>
+              <p className="muted">
+                Omitted holdings are compared against zero shares. Statement
+                date: {state.date}.
+              </p>
+              <button>Reconcile full statement</button>
+              {bookError && <p role="alert">{bookError}</p>}
+            </fieldset>
           </form>
+          <details>
+            <summary>
+              Single-position investigation (does not certify the full book)
+            </summary>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                cmd("reconcile", {
+                  symbol: f.get("symbol"),
+                  actual: Number(f.get("actual")),
+                });
+              }}
+            >
+              <label>
+                Security
+                <select name="symbol">
+                  {state.securities.map((s) => (
+                    <option key={s.symbol}>{s.symbol}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Broker-reported settled shares
+                <input
+                  name="actual"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue="98"
+                  required
+                />
+              </label>
+              <button disabled={state.dayClosed}>Compare positions</button>
+            </form>
+          </details>
           <Table
             headers={["SECURITY", "INTERNAL", "BROKER", "STATUS", "RESOLUTION"]}
             empty={!state.exceptions.length}
@@ -715,8 +860,8 @@ function Operations({ state, cmd }) {
             {state.exceptions.map((e) => (
               <tr key={e.id}>
                 <td>{e.symbol}</td>
-                <td>{e.expected}</td>
-                <td>{e.actual}</td>
+                <td>{e.kind === "CASH" ? money(e.expected) : e.expected}</td>
+                <td>{e.kind === "CASH" ? money(e.actual) : e.actual}</td>
                 <td>
                   <Status value={e.status} />
                 </td>
@@ -790,97 +935,212 @@ function Operations({ state, cmd }) {
 }
 function Client({ state, exportReport }) {
   const p = state.portfolio,
-    samples = [{ value: 10000000 }, ...state.snapshots],
-    min = Math.min(...samples.map((s) => s.value)) - 1000,
-    max = Math.max(...samples.map((s) => s.value)) + 1000;
-  const points = samples
-    .map(
-      (s, i) =>
-        `${30 + (i / Math.max(1, samples.length - 1)) * 740},${
-          150 - ((s.value - min) / (max - min)) * 120
-        }`
-    )
-    .join(" ");
+    performance = state.performance,
+    points = performance?.points || [];
+  const latest = points.at(-1),
+    series = points.length
+      ? points
+      : [{ date: state.date, cumulativeReturnPct: 0, benchmarkReturnPct: 0 }];
+  const values = series.flatMap((x) => [
+      x.cumulativeReturnPct,
+      x.benchmarkReturnPct,
+    ]),
+    min = Math.min(0, ...values) - 0.1,
+    max = Math.max(0, ...values) + 0.1;
+  const line = (field) =>
+    series
+      .map(
+        (point, i) =>
+          `${30 + (i / Math.max(1, series.length - 1)) * 740},${
+            150 - ((point[field] - min) / (max - min)) * 120
+          }`
+      )
+      .join(" ");
+  const pct = (value) =>
+    value === null || value === undefined ? "—" : value.toFixed(3) + "%";
   return (
     <>
+      <div className="stats">
+        {[
+          [
+            "Last closed return",
+            pct(latest?.cumulativeReturnPct),
+            "Since inception",
+          ],
+          [
+            "Daily return",
+            pct(latest?.dailyReturnPct),
+            "Only for consecutive business-day closes",
+          ],
+          [
+            "VTI benchmark",
+            pct(latest?.benchmarkReturnPct),
+            "Price-only return",
+          ],
+          [
+            "Excess return",
+            latest ? latest.excessReturnPct.toFixed(3) + " pp" : "—",
+            "Portfolio minus benchmark",
+          ],
+        ].map(([label, value, note]) => (
+          <div className="card" key={label}>
+            <small>{label}</small>
+            <div className="metric">{value}</div>
+            <small>{note}</small>
+          </div>
+        ))}
+      </div>
       <div className="grid">
         <section className="card">
           <div className="row">
-            <h2>Portfolio value</h2>
+            <h2>Performance vs VTI</h2>
             <button
-              disabled={state.reportStatus?.pending > 0}
+              disabled={
+                !state.reportStatus?.latestDaily ||
+                state.reportStatus?.dailyPending > 0
+              }
               onClick={exportReport}
             >
-              Export report ↓
+              Export daily report ↓
             </button>
           </div>
-          {state.reportStatus?.pending > 0 && (
+          {state.reportStatus?.dailyPending > 0 && (
             <p className="muted">
-              {state.reportStatus.pending} report(s) awaiting background
-              processing.
+              Daily report is being generated.
               {state.reportStatus.lastError && " Worker needs attention."}
             </p>
           )}
-          <svg
-            viewBox="0 0 800 180"
-            role="img"
-            aria-label="Portfolio value at each settlement"
-          >
-            <path
-              d="M30 150H770 M30 90H770 M30 30H770"
-              stroke="#edf1ec"
-              fill="none"
-            />
-            <polyline
-              points={points}
-              fill="none"
-              stroke="#3c8055"
-              strokeWidth="3"
-            />
-          </svg>
-          <div className="row muted">
-            <span>Opening $100,000</span>
-            <span>Latest {money(p.value)}</span>
-          </div>
+          {!points.length ? (
+            <p>
+              No certified daily valuation yet. Operations must reconcile and
+              close the book.
+            </p>
+          ) : (
+            <>
+              <svg
+                viewBox="0 0 800 180"
+                role="img"
+                aria-label="Cumulative portfolio and VTI price returns"
+              >
+                <path
+                  d="M30 150H770 M30 90H770 M30 30H770"
+                  stroke="#edf1ec"
+                  fill="none"
+                />
+                <polyline
+                  points={line("cumulativeReturnPct")}
+                  fill="none"
+                  stroke="#3c8055"
+                  strokeWidth="3"
+                />
+                <polyline
+                  points={line("benchmarkReturnPct")}
+                  fill="none"
+                  stroke="#b49648"
+                  strokeWidth="2"
+                  strokeDasharray="5 4"
+                />
+              </svg>
+              <div className="row muted">
+                <span>Green: Portfolio · Gold: VTI</span>
+                <span>Closed through {latest.date}</span>
+              </div>
+            </>
+          )}
           <p className="muted">
-            {state.snapshots.length} settlement snapshots. Fixed quotes; returns
-            include fees. Daily performance and benchmarks are not yet
-            available.
+            Reports freeze reconciled daily values and price provenance. Missing
+            days have an interval return, not an invented daily return.
+            Benchmark excludes dividends and corporate-action adjustments.
           </p>
+          {state.daily?.at(-1)?.reconciliation && (
+            <p>
+              Latest certification:{" "}
+              <Status value={state.daily.at(-1).reconciliation.status} />
+              {state.daily.at(-1).reconciliation.status ===
+                "RESOLVED_WITH_EXCEPTIONS" &&
+                " Differences were acknowledged with investigation notes."}
+            </p>
+          )}
         </section>
         <section className="card">
-          <h2>Asset allocation</h2>
-          {[
-            ["Cash", p.cash],
-            ...p.positions.map((s) => [s.symbol, s.marketValue]),
-          ].map(([name, value]) => (
-            <div key={name}>
-              <div className="row">
-                <span>{name}</span>
-                <span>{((value / p.value) * 100).toFixed(1)}%</span>
+          <h2>Current asset allocation</h2>
+          {p.value === null ? (
+            <p>
+              Allocation unavailable until held-security prices are available.
+            </p>
+          ) : (
+            [
+              ["Cash", p.cash],
+              ...p.positions.map((x) => [x.symbol, x.marketValue]),
+            ].map(([name, value]) => (
+              <div key={name}>
+                <div className="row">
+                  <span>{name}</span>
+                  <span>
+                    {p.value > 0
+                      ? ((value / p.value) * 100).toFixed(1) + "%"
+                      : "—"}
+                  </span>
+                </div>
+                <div className="allocation">
+                  <span
+                    style={{
+                      width: p.value > 0 ? (value / p.value) * 100 + "%" : "0%",
+                    }}
+                  />
+                </div>
               </div>
-              <div className="allocation">
-                <span style={{ width: (value / p.value) * 100 + "%" }} />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
           <p>
-            Realized P&L: {money(p.realized)}
+            Realized price P&amp;L: {money(p.realized)}
             <br />
-            Total fees:{" "}
-            {money(
-              -state.ledger
-                .filter((e) => e.type === "FEE")
-                .reduce((n, e) => n + e.cash, 0)
-            )}
+            Execution fees: {money(p.fees)}
+          </p>
+          <p className="muted">
+            Current valuation may differ from the last closed report.
           </p>
         </section>
       </div>
       <Holdings positions={p.positions} />
       <section className="card">
+        <h2>Certified daily history</h2>
+        <Table
+          headers={[
+            "DATE",
+            "VALUE",
+            "DAILY RETURN",
+            "INTERVAL RETURN",
+            "TOTAL RETURN",
+            "VTI",
+            "EXCESS",
+          ]}
+          empty={!points.length}
+        >
+          {points.map((point) => (
+            <tr key={point.date}>
+              <td>{point.date}</td>
+              <td>{money(point.value)}</td>
+              <td>{pct(point.dailyReturnPct)}</td>
+              <td>{pct(point.periodReturnPct)}</td>
+              <td>{pct(point.cumulativeReturnPct)}</td>
+              <td>{pct(point.benchmarkReturnPct)}</td>
+              <td>{point.excessReturnPct.toFixed(3)} pp</td>
+            </tr>
+          ))}
+        </Table>
+      </section>
+      <section className="card">
         <h2>Transaction history</h2>
         <Table
-          headers={["DATE", "SECURITY", "SIDE", "SHARES", "PRICE", "STATUS"]}
+          headers={[
+            "DATE",
+            "SECURITY",
+            "SIDE",
+            "SHARES",
+            "EXECUTION",
+            "STATUS",
+          ]}
           empty={!state.trades.length}
         >
           {state.trades.map((t) => (

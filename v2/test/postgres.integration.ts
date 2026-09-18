@@ -67,6 +67,9 @@ const command = (
     key
   );
 async function trade(user: User, quantity = 100) {
+  const { refreshMarket } = await import("../src/market.js");
+  const { securities } = await import("../src/catalog.js");
+  await refreshMarket((await state(user)).date, { name: "mock", getHistory: async (symbol, date) => [{symbol, date, price: securities.find(s => s.symbol === symbol)!.price}] });
   const order = await command(user, "create", {
     symbol: "MSFT",
     side: "BUY",
@@ -117,6 +120,7 @@ before(async () => {
 after(async () => {
   if (server)
     await new Promise<void>((resolve) => server.close(() => resolve()));
+  await (await import("../src/market-cache.js")).closeMarketCache();
   if (pool) await pool.end();
   if (adminConnected) {
     await admin.query(`DROP DATABASE ${dbName} WITH (FORCE)`);
@@ -617,6 +621,86 @@ test("legacy user import preserves bcrypt credentials and is repeatable", async 
   });
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.accounts[0].roles, ["investment", "client"]);
+});
+
+test("certified daily valuation freezes market prices, reconciliation and benchmark performance", async () => {
+  const { refreshMarket } = await import("../src/market.js");
+  const { MockMarketDataProvider } = await import("../src/market-provider.js");
+  const { pendingReports, processReport } = await import("../src/reporting.js");
+  const initial = await state(pm);
+  for (const action of ["refreshMarket", "reconcileBook", "closeValuation"])
+    assert.equal((await command(client, action)).status, 403);
+  assert.equal((await request("/api/market?accountId=" + pm.account, other)).status, 403);
+  assert.equal((await command(ops, "closeValuation")).status, 409);
+  await refreshMarket(initial.date, new MockMarketDataProvider());
+  const marked = await state(pm);
+  assert.deepEqual(marked.ledger, initial.ledger);
+  assert.equal(marked.portfolio.cash, initial.portfolio.cash);
+  assert.equal(marked.portfolio.positions[0].quantity, 100);
+  const statement = {asOf: marked.date, cash: marked.portfolio.cash, positions: [{symbol:"MSFT", quantity:98}], broker:"Integration broker"};
+  assert.equal((await command(ops, "reconcileBook", statement)).status, 200);
+  assert.equal((await command(ops, "closeValuation")).status, 409);
+  const exceptions = (await state(pm)).exceptions.filter((e: any) => e.status === "OPEN");
+  for (const e of exceptions) assert.equal((await command(ops, "resolve", {id:e.id, note:"Broker confirmed stale quantity; acknowledged difference"})).status, 200);
+  // A failed refresh keeps last good prices, but blocks certification.
+  await assert.rejects(refreshMarket(marked.date, {name:"mock", getHistory:async()=>{throw Error("Provider quota");}}), /quota/);
+  const failed = await state(pm);
+  assert.deepEqual(failed.prices, marked.prices);
+  assert.equal(failed.priceSet.lastError, "Provider quota");
+  assert.equal((await command(ops, "closeValuation")).status, 409);
+  await refreshMarket(marked.date, new MockMarketDataProvider());
+  const key = randomUUID();
+  const close = await command(ops, "closeValuation", {}, key);
+  assert.equal(close.status, 200, JSON.stringify(close.body));
+  assert.equal(close.body.result.reconciliation.status, "RESOLVED_WITH_EXCEPTIONS");
+  assert.equal((await command(ops, "closeValuation", {}, key)).body.result.id, close.body.result.id);
+  assert.equal((await command(ops, "closeValuation")).status, 409);
+  assert.equal((await command(pm, "create", {symbol:"MSFT",side:"BUY",quantity:1,orderType:"MARKET"})).status, 409);
+  assert.equal((await request("/api/report?scope=daily&accountId="+pm.account,client)).status,409);
+  for(const id of await pendingReports()) await processReport(id);
+  const firstReport = await request("/api/report?scope=daily&accountId="+pm.account,client);
+  assert.equal(firstReport.status,200);
+  assert.deepEqual(firstReport.body.priceSet, close.body.result.priceSet);
+  assert.equal(firstReport.body.performance.points.length,1);
+  await command(ops,"advance");
+  assert.equal((await state(pm)).priceSet.status,"STALE");
+  const jobKey=randomUUID();
+  const job=await command(ops,"refreshMarket",{},jobKey);
+  assert.equal((await command(ops,"refreshMarket",{},jobKey)).body.result.id,job.body.result.id);
+  const {processMarketJob}=await import("../src/market-worker.js");
+  assert.equal(await processMarketJob(),true);
+  const next=await state(pm);
+  assert.equal(next.priceSet.status,"FRESH");
+  assert.deepEqual(next.ledger,initial.ledger);
+  assert.equal((await command(ops,"closeValuation")).status,409);
+  assert.equal((await command(ops,"reconcileBook",{asOf:next.date,cash:next.portfolio.cash,positions:[{symbol:"MSFT",quantity:100}],broker:"Integration broker"})).status,200);
+  const second=await command(ops,"closeValuation");
+  assert.equal(second.status,200,JSON.stringify(second.body));
+  const points=second.body.result.performance.points;
+  assert.equal(points.length,2);
+  assert.ok(points[1].dailyReturnPct !== null);
+  assert.ok(Math.abs(points[1].dailyReturnPct-(points[1].value/points[0].value-1)*100)<1e-9);
+  assert.ok(Math.abs(points[1].excessReturnPct-(points[1].cumulativeReturnPct-points[1].benchmarkReturnPct))<1e-9);
+  for(const id of await pendingReports()) await processReport(id);
+  assert.equal((await request("/api/report?scope=daily&accountId="+pm.account,client)).body.date,next.date);
+  const frozen=await pool.query("SELECT payload FROM generated_reports WHERE snapshot_id=$1",[close.body.result.id]);
+  assert.deepEqual(frozen.rows[0].payload,firstReport.body);
+  await assert.rejects(pool.query("UPDATE daily_valuations SET provider='mock' WHERE snapshot_id=$1",[close.body.result.id]),/append.only|immutable/i);
+});
+
+test("optional Redis cache can be removed without affecting book or valuation", {skip: !process.env.REDIS_URL}, async () => {
+  const before=await state(pm);
+  const path="/api/market?accountId="+pm.account;
+  await request(path,client);
+  assert.equal((await request(path,client)).body.cache,"hit");
+  assert.equal((await request("/api/market/cache?accountId="+pm.account,client,{})).status,403);
+  const clear=await request("/api/market/cache?accountId="+pm.account,ops,{});
+  assert.equal(clear.status,200);
+  assert.ok(clear.body.removed>0);
+  assert.equal((await request(path,client)).body.cache,"miss");
+  const after=await state(pm);
+  assert.deepEqual(after.ledger,before.ledger);
+  assert.deepEqual(after.portfolio,before.portfolio);
 });
 
 test("logout revokes the server-side session and expired sessions cannot read data", async () => {

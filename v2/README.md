@@ -1,6 +1,6 @@
-# InvestNexus v2 — PostgreSQL / TypeScript milestone
+# InvestNexus v2 — Milestone 2
 
-本轮把本地 JSON 原型升级为 PostgreSQL 事务后端，并加入可信登录、账户权限、共享 React 工作区和异步报告。
+在 PostgreSQL 事务、可信登录和账户权限之上，接入 Market Data → Valuation / P&L → 完整对账 → Daily Snapshot → Client Performance Report。
 
 ## 本地启动
 
@@ -34,6 +34,12 @@ npm start
 npm run worker
 ```
 
+再开一个终端运行行情 worker：
+
+```sh
+npm run market:worker
+```
+
 浏览器打开 http://localhost:4200。首次运行必须构建，`public/app.js`、`public/app.css`、`dist/` 是构建产物，不提交 Git。环境变量和本地数据库数据也不提交。
 
 ## 演示用户
@@ -49,15 +55,43 @@ npm run worker
 
 注册创建自己的独立投资账户，初始模拟现金 $100,000，不会授予 Operations 权限。角色从 PostgreSQL membership 查询；请求中的 actor、persona 或 accountId 不能授予权限。
 
-## 五分钟流程
+## Milestone 2 演示流程
 
-1. PM 创建 BUY 100 MSFT，Approve，然后分 60 / 40 股执行。
-2. 切换 Operations 用户，Advance business date，逐笔 Settle。
-3. 核对 100 股持仓、$58,990 现金、$99,990 总价值（两笔成交各 $5 费用）。
-4. 对账输入 broker shares 98，生成 2 股差异，输入说明后 Resolve。处理说明不会直接改持仓。
-5. Client 查看持仓、配置、快照曲线；worker 完成报告后 Export report。
-6. PM 创建 BUY 1000 MSFT 并成交，Ops 推进日期后结算，展示 FAILED / Insufficient cash，无账本写入。
-7. 独立用户登录后看到自己的账户；直接请求别的 accountId 得到 403。
+1. PM 创建 BUY 100 MSFT，Approve，分 60 / 40 股执行。
+2. Operations 推进业务日期，逐笔 Settle。账本得到 100 股、$58,990 现金；行情变化不会修改现金或持仓数量。
+3. Operations 点击 Refresh market，等待任务 COMPLETE；行情 worker 获取四种证券的日期价格与历史。也可用 `npm run market:refresh -- 2026-09-21` 手动刷新。
+4. 完整对账表单填写当天日期、账本现金以及 broker 持仓 JSON，例如 `[{"symbol":"MSFT","quantity":98}]`。现金和证券分别生成匹配项或差异；遗漏的持仓按 broker 数量 0 对账。
+5. 差异必须调查后填写说明 Resolve。说明不会直接改账；正式报告标注 `RESOLVED_WITH_EXCEPTIONS`，保留原始差异与说明。
+6. 行情 FRESH、刷新无错误、完整对账与当前账本版本一致后，点击 Close valuation & publish。每天仅能关闭一次；关闭后金融操作被锁定，须先推进日期。
+7. 客户查看累计收益、相邻业务日日收益、VTI 价格基准和超额收益，worker 完成后 Export report 下载 JSON。再次推进日期、刷新、对账、日结，可看到跨日业绩曲线。
+
+## 行情、估值与收益口径
+
+默认 `MARKET_PROVIDER=mock`：固定锚点、可重复的模拟历史价格，支持演示日期推进，明确标记模拟来源。它不是实时行情。
+
+使用自己的 Alpha Vantage key：
+
+```dotenv
+MARKET_PROVIDER=alpha-vantage
+ALPHA_VANTAGE_API_KEY=your_own_key
+MARKET_POLL_SECONDS=3600
+```
+
+重启 API 与行情 worker。适配器使用 `TIME_SERIES_DAILY` 的日收盘价，串行拉取 MSFT、AAPL、NVDA、VTI；依赖你的 API 配额。网络、配额、格式失败不会发布部分批次或切回模拟价格。未来业务日期不允许真实行情刷新。行情日期与业务日期不一致会显示 STALE，并阻止成交和日结；本 MVP 只按周末处理业务日，未接交易所节假日日历，因此节假日也会阻止日结。
+
+每个价格保存来源、价格日期、获取时间及批次。历史查询仅使用截至业务日期的价格，不使用未来价格。估值缺少持仓价格时显示 INCOMPLETE 和空值，仍保留账本现金和持仓；结算不依赖行情服务。
+
+成本为整数 cents 加权成本，部分卖出按比例四舍五入、最后一笔消耗剩余成本。已实现/未实现 P&L 为价格损益，手续费单独展示并计入组合总价值。累计收益为 `(总价值 / 初始资金 - 1)`；VTI 基准按账户成立日可用收盘价归一化；超额收益为两者百分点差。相邻业务日日结计算日收益，缺日只展示区间收益，日收益为空。暂不支持入金/出金后的 TWR、分红再投资、拆股或其他公司行动；真实适配器使用未调整的收盘价，基准是价格收益，不是总回报。一个业绩序列不能混用行情来源。
+
+日结记录、价格批次、行情和报告均受数据库追加式保护。报告冻结当时的行情、持仓、对账、业绩序列和已结算交易；随后刷新价格不会改写历史报告。结算产生的旧快照仍保留，但客户正式导出使用 `/api/report?scope=daily`，需完成日结。
+
+## 可选 Redis 行情缓存
+
+```sh
+docker compose --profile cache up -d redis
+```
+
+在 `.env` 设置 `REDIS_URL=redis://127.0.0.1:56379`，重启 API。`GET /api/market?accountId=...` 缓存行情，键包含不可变价格 ID，TTL 300 秒。缓存不可用则读取 PostgreSQL；现金、数量、账本和日结从不以 Redis 为依据。Operations 可调用带 CSRF 的 `POST /api/market/cache?accountId=...` 清除本应用行情缓存，不会清空整个 Redis。
 
 ## 已实现的保证
 
@@ -69,7 +103,7 @@ npm run worker
 - 数据库触发器保护追加式账本、审计、快照和报告；持仓由账本重放。
 - HttpOnly / SameSite=Strict 会话 cookie；服务端保存 token 的哈希；8 小时过期；注销立即撤销。
 - 密码 scrypt；可兼容原版 bcrypt 哈希。注册密码 12–128 字符。
-- CSRF token 和 Origin 检查；读/写/SSE/report 全部验证账户成员关系。
+- CSRF token 和 Origin 检查；读/写/SSE/report/market 全部验证账户成员关系。
 - 审计记录真实用户邮箱及外键 ID；SSE 按账户推送，PostgreSQL NOTIFY 支持多个 API 进程。
 
 ## 报告与 RabbitMQ

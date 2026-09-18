@@ -25,6 +25,11 @@ services:
       - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+  redis:
+    image: redis:7-alpine
+    profiles: ["cache"]
+    ports:
+      - "127.0.0.1:56379:6379"
 volumes:
   rabbitmq_data:
   postgres_data:

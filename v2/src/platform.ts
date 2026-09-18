@@ -15,12 +15,9 @@ const now = () => new Date().toISOString();
 function check(ok: unknown, message: string): asserts ok {
   if (!ok) throw new AppError(422, message);
 }
-export const securities = [
-  { symbol: "MSFT", name: "Microsoft", price: 41000 },
-  { symbol: "AAPL", name: "Apple", price: 22500 },
-  { symbol: "NVDA", name: "NVIDIA", price: 12500 },
-  { symbol: "VTI", name: "Total US Market ETF", price: 28000 },
-];
+import { securities } from "./catalog.js";
+import { book, portfolio } from "./ledger.js";
+export { securities, portfolio };
 export function seed(): State {
   return {
     date: now().slice(0, 10),
@@ -39,50 +36,7 @@ export function seed(): State {
     events: [],
     exceptions: [],
     snapshots: [],
-  };
-}
-export function portfolio(s: State): Portfolio {
-  let cash = 0,
-    realized = 0;
-  const holdings: Record<
-    string,
-    { symbol: string; quantity: number; cost: number }
-  > = {};
-  for (const e of s.ledger) {
-    cash += e.cash;
-    if (!e.symbol) continue;
-    const p = (holdings[e.symbol] ??= {
-      symbol: e.symbol,
-      quantity: 0,
-      cost: 0,
-    });
-    if (e.quantity > 0) {
-      p.quantity += e.quantity;
-      p.cost += -e.cash;
-    } else {
-      const cost = (p.cost / p.quantity) * -e.quantity;
-      realized += e.cash - cost;
-      p.cost -= cost;
-      p.quantity += e.quantity;
-    }
-  }
-  const positions = Object.values(holdings)
-    .filter((p) => p.quantity > 0)
-    .map((p) => ({
-      ...p,
-      averageCost: Math.round(p.cost / p.quantity),
-      price: securities.find((x) => x.symbol === p.symbol)!.price,
-      marketValue:
-        p.quantity * securities.find((x) => x.symbol === p.symbol)!.price,
-    }));
-  const value = cash + positions.reduce((n, p) => n + p.marketValue, 0);
-  return {
-    cash,
-    positions,
-    value,
-    realized,
-    unrealized: positions.reduce((n, p) => n + p.marketValue - p.cost, 0),
-    returnPct: (value / 10000000 - 1) * 100,
+    reconciliationRuns: [],
   };
 }
 function event(
@@ -95,7 +49,19 @@ function event(
   s.events.push({ id: id(), type, entity, actor, at: now(), ...detail });
 }
 function snapshot(s: State) {
-  s.snapshots.push({ id: id(), date: s.date, at: now(), ...portfolio(s) });
+  const p = portfolio(s);
+  if (p.value === null) {
+    event(s, "ValuationUnavailable", s.date, "system");
+    return;
+  }
+  s.snapshots.push({
+    id: id(),
+    date: s.date,
+    at: now(),
+    ...p,
+    kind: "SETTLEMENT",
+    priceSet: s.priceSet,
+  });
   event(s, "PortfolioSnapshotCreated", s.snapshots.at(-1)!.id, "system");
 }
 export function command(
@@ -163,7 +129,17 @@ export function command(
       ["APPROVED", "PARTIALLY_FILLED", "SUBMITTED"].includes(o.status),
       "Order cannot execute"
     );
-    const price = securities.find((x) => x.symbol === o.symbol)!.price;
+    const price = (s.prices ??
+      Object.fromEntries(securities.map((x) => [x.symbol, x.price])))[o.symbol];
+    check(
+      Number.isSafeInteger(price) && price > 0,
+      "Execution price unavailable"
+    );
+    if (s.priceSet)
+      check(
+        s.priceSet.quotes.find((q) => q.symbol === o.symbol)?.asOf === s.date,
+        "Execution quote is stale; refresh market first"
+      );
     check(
       o.orderType !== "LIMIT" ||
         (o.side === "BUY" ? price <= o.limitPrice! : price >= o.limitPrice!),
@@ -219,9 +195,9 @@ export function command(
     check(t, "Trade not found");
     check(["PENDING", "FAILED"].includes(t.status), "Already settled");
     check(t.due <= s.date, "Settlement is not due yet");
-    const p = portfolio(s);
+    const p = book(s);
     const amount = t.quantity * t.price;
-    const held = p.positions.find((x) => x.symbol === t.symbol)?.quantity ?? 0;
+    const held = p.holdings.find((x) => x.symbol === t.symbol)?.quantity ?? 0;
     const reason =
       (t.side === "BUY" ? p.cash - amount - t.fee : p.cash + amount - t.fee) < 0
         ? "Insufficient cash"

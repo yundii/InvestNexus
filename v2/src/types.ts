@@ -47,6 +47,9 @@ export interface AuditEvent {
   note?: string;
 }
 export interface Reconciliation {
+  kind?: "POSITION" | "CASH";
+  runId?: string;
+  businessDate?: string;
   id: string;
   symbol: string;
   expected: number;
@@ -61,21 +64,29 @@ export interface Position {
   quantity: number;
   cost: number;
   averageCost: number;
-  price: number;
-  marketValue: number;
+  price: number | null;
+  marketValue: number | null;
 }
 export interface Portfolio {
   cash: number;
   positions: Position[];
-  value: number;
+  value: number | null;
   realized: number;
-  unrealized: number;
-  returnPct: number;
+  unrealized: number | null;
+  returnPct: number | null;
+  fees: number;
+  capital: number;
+  valuationStatus: "FRESH" | "STALE" | "INCOMPLETE";
+  missingPrices: string[];
 }
 export interface Snapshot extends Portfolio {
   id: string;
   date: string;
   at: string;
+  kind?: "SETTLEMENT" | "DAILY";
+  priceSet?: PriceSet;
+  performance?: Performance;
+  reconciliation?: ReconciliationSummary;
 }
 export interface State {
   date: string;
@@ -85,6 +96,10 @@ export interface State {
   events: AuditEvent[];
   exceptions: Reconciliation[];
   snapshots: Snapshot[];
+  reconciliationRuns: ReconciliationRun[];
+  ledgerVersion?: number;
+  prices?: Record<string, number>;
+  priceSet?: PriceSet;
 }
 export interface CommandData {
   id?: string;
@@ -94,6 +109,10 @@ export interface CommandData {
   orderType?: "MARKET" | "LIMIT";
   limitPrice?: number;
   actual?: number;
+  cash?: number;
+  asOf?: string;
+  positions?: { symbol: string; quantity: number }[];
+  broker?: string;
   note?: string;
 }
 export interface Identity {
@@ -110,4 +129,55 @@ export class AppError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+}
+
+export interface Quote {
+  id: string;
+  symbol: string;
+  price: number;
+  asOf: string;
+  provider: string;
+  fetchedAt: string;
+}
+export interface PriceSet {
+  provider: string;
+  status: "FRESH" | "STALE" | "INCOMPLETE";
+  quotes: Quote[];
+  missing: string[];
+  lastRefresh: string | null;
+  lastError: string | null;
+}
+export interface ReconciliationRun {
+  id: string;
+  date: string;
+  ledgerVersion: number;
+  broker: string;
+  cash: number;
+  positions: { symbol: string; quantity: number }[];
+  at: string;
+}
+export interface ReconciliationSummary {
+  runId: string;
+  status: "MATCHED" | "RESOLVED_WITH_EXCEPTIONS";
+  ledgerVersion: number;
+  broker: string;
+  exceptions: Reconciliation[];
+}
+export interface PerformancePoint {
+  date: string;
+  value: number;
+  periodReturnPct: number;
+  dailyReturnPct: number | null;
+  cumulativeReturnPct: number;
+  benchmarkPrice: number;
+  benchmarkReturnPct: number;
+  excessReturnPct: number;
+}
+export interface Performance {
+  benchmark: string;
+  provider: string;
+  inceptionDate: string;
+  baselineBenchmarkPrice: number;
+  baselineBenchmarkDate: string;
+  points: PerformancePoint[];
 }

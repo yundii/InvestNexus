@@ -1,4 +1,4 @@
-const RAPID_APIKEY = '8c9cc817fdmsh6a614faa01d8977p1612edjsn3cf267975307';
+const RAPID_APIKEY = process.env.RAPID_API_KEY;
 
 export const searchStock = async (symbol) => {
     try {
@@ -138,7 +138,7 @@ export const fetchAndStoreStockNews = async (symbol, prisma) => {
 
 export const fetchTopicNews = async (topics, prisma) => {
     try {
-        const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=${topics}&apikey=W4LZ8TZN51QS5V7S`;
+        const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=${topics}&apikey=${encodeURIComponent(process.env.ALPHA_VANTAGE_API_KEY || "")}`;
         
         const response = await fetch(url);
         const data = await response.json();

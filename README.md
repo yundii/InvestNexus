@@ -1,8 +1,8 @@
 # InvestNexus — Mini Investment Management Platform
 
-InvestNexus v2 models the investment lifecycle: decisions and orders → simulated execution → settlement → ledger-derived holdings → reconciliation → client reports.
+InvestNexus v2 models the investment lifecycle: decisions and orders → simulated execution → settlement → ledger-derived holdings → market prices → valuation / P&L → reconciliation → daily snapshots → client performance reports.
 
-The current milestone adds a **TypeScript backend, PostgreSQL transactions, server-side sessions and account roles, shared React workspaces, and asynchronous reports through a transactional outbox**. The original dashboard remains in `api/` and `client/`.
+**Milestone 2 is implemented:** dated market data, ledger-derived valuation, realized/unrealized P&L, full cash/position reconciliation, immutable daily closes, and client performance versus VTI. These run on the TypeScript/PostgreSQL backend with account roles and transactional report outbox. The original dashboard remains in `api/` and `client/`.
 
 ## Quick start
 
@@ -44,6 +44,13 @@ cd v2
 npm run worker
 ```
 
+Start the market worker in another terminal:
+
+```sh
+cd v2
+npm run market:worker
+```
+
 Open **http://localhost:4200**. The example environment provisions demo users with password **`LocalDemo-2026!`**. These are local simulation accounts only.
 
 | Login | Account | Permissions |
@@ -60,12 +67,13 @@ Self-registration creates a separate simulated account with investment/client ro
 1. Sign in as the PM, create and approve a **BUY 100 MSFT** market order.
 2. Execute a fill of **60** shares, then the remaining **40**. Observe `PARTIALLY_FILLED` → `FILLED`.
 3. Sign out and sign in as Operations. Advance the business date and settle both fills.
-4. The settled portfolio now has 100 MSFT shares, $58,990 cash, and a $99,990 valuation, including two $5 execution fees.
-5. Reconcile against **98** broker-reported MSFT shares; resolve the difference with an investigation note.
-6. Sign in as the client and view holdings, allocation, snapshot history, and the downloadable report. The worker generates the report after settlement commits.
-7. Sign in as the independent investor to verify a different account with its own data.
+4. Operations refreshes market data and waits for COMPLETE. Cash and share quantities remain ledger-derived; market prices change valuation and P&L.
+5. Submit the full broker statement with current cash, business date and positions. Try 98 MSFT shares to create a 2-share exception, then resolve it with an investigation note. The report retains acknowledged exceptions.
+6. Close valuation & publish after fresh prices and current-ledger reconciliation. Each date closes once and blocks further financial writes until advancing the date.
+7. The client views daily/cumulative performance, VTI price returns, excess returns and certified history, then downloads the frozen JSON report after the report worker completes.
+8. Advance, refresh prices, reconcile and close again to create a multi-day performance series.
 
-A BUY 1,000 MSFT execution followed by settlement demonstrates insufficient-cash failure. No financial postings are written for failed settlement.
+Market data defaults to a repeatable **mock** provider. To fetch actual daily closing prices, set `MARKET_PROVIDER=alpha-vantage` and your own `ALPHA_VANTAGE_API_KEY`, then restart the API and market worker. Failed refreshes preserve last good prices; stale or missing prices block certification. No real API credentials are included. The MVP uses weekday dates, unadjusted close prices, fixed initial capital and a price-return benchmark; it does not yet handle exchange holidays, cash-flow-adjusted performance, dividends or corporate actions. See [the detailed milestone guide](v2/README.md) for assumptions and optional Redis cache setup.
 
 ## Architecture
 
@@ -131,12 +139,12 @@ npm run test:integration
 
 Integration tests create and clean up an isolated PostgreSQL database. The test user therefore needs `CREATEDB`; the application itself does not need it.
 
-Tests exercise partial fills, exact-once posting, duplicate/concurrent requests, overspending prevention, injected database failure and full rollback, session restoration/revocation/expiry, CSRF, role/account isolation, report idempotency, and legacy-password compatibility. With `RABBITMQ_URL`, the suite also launches a worker against a real broker and tests duplicate delivery. GitHub Actions supplies PostgreSQL and RabbitMQ services.
+Tests exercise partial fills, exact-once posting, duplicate/concurrent requests, overspending prevention, injected database failure and full rollback, session restoration/revocation/expiry, CSRF, role/account isolation, report idempotency, and legacy-password compatibility. With `RABBITMQ_URL`, the suite also launches a worker against a real broker and tests duplicate delivery. With `REDIS_URL`, the suite verifies cache invalidation without changing the book. Tests also cover refresh failures, immutable daily valuations, reconciliation gates, frozen reports, and benchmark returns. GitHub Actions supplies PostgreSQL, RabbitMQ and Redis services.
 
 ## Scope
 
-This is a **local simulation**, not real trading. Prices are fixed mock quotes; T+1 skips weekends but not exchange holidays. Returns are based on opening capital and settlement snapshots, without benchmark history or TWR/IRR. Price-only realized P&L and execution fees are shown separately.
+This is a **local simulation**, not real trading. Prices default to deterministic mock history with an optional Alpha Vantage daily provider; T+1 skips weekends but not exchange holidays. Certified returns are based on opening capital and daily snapshots with VTI price history, without TWR/IRR. Price-only realized P&L and execution fees are shown separately.
 
-There is no Redis cache or real market-data provider in this milestone. PostgreSQL replaces local JSON persistence; the old JSON file is retained locally and is not automatically imported. Database triggers provide application-level protection, not tamper-proof storage against a database owner. Production work still requires HTTPS/secure cookies, managed secrets, least-privilege database roles, backup/recovery, distributed rate limiting, and operational monitoring.
+Redis is an optional disposable market-data cache; PostgreSQL remains the financial source of truth. PostgreSQL replaces local JSON persistence; the old JSON file is retained locally and is not automatically imported. Database triggers provide application-level protection, not tamper-proof storage against a database owner. Production work still requires HTTPS/secure cookies, managed secrets, least-privilege database roles, backup/recovery, distributed rate limiting, and operational monitoring.
 
 [Detailed guide in Chinese](v2/README.md) · [Original dashboard documentation](docs/legacy-dashboard.md) · [Original demo video](https://www.youtube.com/watch?v=M2_N8s5u4L8)

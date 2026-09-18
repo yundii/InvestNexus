@@ -164,12 +164,12 @@ npm run test:integration
 
 集成测试使用独立随机命名数据库，结束后清理，不使用演示账户的数据。测试数据库用户需要 CREATEDB；生产应用不应授予这个权限。配置 `RABBITMQ_URL` 会额外执行真实 broker 的发布/消费/重复投递测试；无 broker 时该项明确跳过。
 
-本机验证了 TypeScript / 共享 React 构建、原版 React 构建、领域测试、真实 PostgreSQL 集成测试。GitHub Actions 配置 PostgreSQL + RabbitMQ，覆盖 broker 集成；本机没有 Docker/RabbitMQ，未在本机验证该模式。
+本机验证了 TypeScript / 共享 React 构建、原版 React 构建、领域测试、真实 PostgreSQL 集成测试。GitHub Actions 配置 PostgreSQL + RabbitMQ + Redis，覆盖真实 broker 和缓存集成；本机未配置 RabbitMQ/Redis，对应测试明确跳过。
 
 ## 实现边界
 
-固定模拟行情和券商；T+1 工作日不处理交易所节假日；每成交 $5。收益基于初始资本和结算快照；无日行情收益、基准对比、TWR/IRR。realized P&L 为买卖价差，手续费单独展示。
+默认模拟行情和券商，支持自带 key 的真实日收盘价；T+1 工作日不处理交易所节假日；每成交 $5。收益基于初始资本和正式日结，支持相邻业务日收益及 VTI 价格基准；暂不支持 TWR/IRR。realized P&L 为买卖价差，手续费单独展示。
 
-本轮未加入 Redis 或真实行情。数据库模型使用独立关系表、外键和约束，部分领域详情保存在 JSONB payload。账本不是双分录会计，数据库 owner 可以修改触发器；没有声称防篡改审计。
+Redis 只缓存可重建行情，不作为金融数据依据。数据库模型使用独立关系表、外键和约束，部分领域详情保存在 JSONB payload。账本不是双分录会计，数据库 owner 可以修改触发器；没有声称防篡改审计。
 
 服务仍只监听 localhost。正式部署需要 HTTPS（`COOKIE_SECURE=true`）、私密数据库/队列凭据、最小权限数据库角色、备份恢复、共享限流及监控。当前登录限流保存在单 API 进程内，不能替代分布式限流。

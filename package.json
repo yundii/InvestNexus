@@ -1,0 +1,10 @@
+{
+  "name": "investnexus",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.13"},
+  "scripts": {
+    "demo": "node scripts/demo.mjs",
+    "test:e2e": "npm --prefix v2 run test:e2e"
+  }
+}

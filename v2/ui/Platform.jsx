@@ -71,6 +71,25 @@ export default function Platform({ apiBase = "" }) {
     },
     [apiBase]
   );
+  const [demoAvailable, setDemoAvailable] = useState(false);
+  useEffect(() => {
+    request("/api/config")
+      .then((data) => setDemoAvailable(data.demoEnabled))
+      .catch(() => {});
+  }, [request]);
+  async function startDemo() {
+    setBusy(true);
+    setError("");
+    try {
+      accept(
+        await request("/api/demo", { method: "POST", body: JSON.stringify({}) })
+      );
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const accept = useCallback((data) => {
     setAuth(data);
     const saved = sessionStorage.getItem("investnexus-account");
@@ -242,7 +261,7 @@ export default function Platform({ apiBase = "" }) {
     return (
       <div className="nexus">
         <div className="login">
-          <div className="eyebrow">INVESTNEXUS / V2</div>
+          <div className="eyebrow">INVESTNEXUS</div>
           <h1>
             Investment management,
             <br />
@@ -252,6 +271,17 @@ export default function Platform({ apiBase = "" }) {
           {error && (
             <div role="alert" className="notice">
               {error}
+            </div>
+          )}
+          {demoAvailable && (
+            <div className="demo-entry">
+              <button className="primary" onClick={startDemo} disabled={busy}>
+                Start private demo →
+              </button>
+              <p className="muted">
+                Your own $100,000 sandbox. Switch between Investment, Operations
+                and Client to complete the workflow. No real trades.
+              </p>
             </div>
           )}
           <form onSubmit={loginSubmit}>
@@ -296,18 +326,20 @@ export default function Platform({ apiBase = "" }) {
                 : "Sign in →"}
             </button>
           </form>
-          <button
-            className="link-button"
-            disabled={busy}
-            onClick={() => {
-              setRegisterMode(!registerMode);
-              setError("");
-            }}
-          >
-            {registerMode
-              ? "Already registered? Sign in"
-              : "New here? Create an independent account"}
-          </button>
+          {!demoAvailable && (
+            <button
+              className="link-button"
+              disabled={busy}
+              onClick={() => {
+                setRegisterMode(!registerMode);
+                setError("");
+              }}
+            >
+              {registerMode
+                ? "Already registered? Sign in"
+                : "New here? Create an independent account"}
+            </button>
+          )}
           <p className="muted">
             Simulation environment · No real broker transactions.
           </p>
@@ -321,7 +353,7 @@ export default function Platform({ apiBase = "" }) {
     <div className="nexus">
       <aside>
         <div className="brand">
-          ◈ InvestNexus<small>PLATFORM / V2</small>
+          ◈ InvestNexus<small>INVESTMENT MANAGEMENT</small>
         </div>
         <div className="label">WORKSPACES</div>
         <nav>

@@ -1,9 +1,9 @@
 name: InvestNexus
 on:
   push:
-    paths: ['v2/**', 'README.md', '.github/workflows/v2-ci.yml']
+    paths: ['v2/**', 'scripts/**', 'package.json', 'render.yaml', 'README.md', '.github/workflows/v2-ci.yml']
   pull_request:
-    paths: ['v2/**', 'README.md', '.github/workflows/v2-ci.yml']
+    paths: ['v2/**', 'scripts/**', 'package.json', 'render.yaml', 'README.md', '.github/workflows/v2-ci.yml']
 permissions:
   contents: read
 jobs:
@@ -53,3 +53,13 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run test:integration
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-workflow-results
+          path: |
+            v2/playwright-report/
+            v2/test-results/
+          retention-days: 14

@@ -16,7 +16,8 @@
     "worker": "node --env-file-if-exists=.env dist/worker.js",
     "worker:retry": "node --env-file-if-exists=.env --import tsx scripts/retry-reports.ts",
     "market:worker": "node --env-file-if-exists=.env dist/market-worker.js",
-    "market:refresh": "node --env-file-if-exists=.env --import tsx scripts/refresh-market.ts"
+    "market:refresh": "node --env-file-if-exists=.env --import tsx scripts/refresh-market.ts",
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": ">=22"
@@ -29,6 +30,7 @@
     "redis": "^6.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/amqplib": "^0.10.8",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.15.5",

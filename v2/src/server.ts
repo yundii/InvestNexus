@@ -19,6 +19,7 @@ import {
   closeMarketCache,
 } from "./market-cache.js";
 import { stateFor, execute, membership } from "./repository.js";
+import { createDemo, demoEnabled } from "./demo.js";
 const publicRoot = fileURLToPath(new URL("../public/", import.meta.url));
 const port = Number(process.env.PORT ?? 4200);
 const streams = new Map<string, Set<http.ServerResponse>>();
@@ -92,10 +93,43 @@ export function createServer() {
         await pool.query("SELECT 1");
         return json(200, { status: "ok", storage: "postgresql" });
       }
+      if (url.pathname === "/api/config" && req.method === "GET")
+        return json(200, { demoEnabled: demoEnabled() });
+      if (url.pathname === "/api/demo" && req.method === "POST") {
+        if (!demoEnabled())
+          throw new AppError(404, "Demo sandbox is unavailable");
+        await body(req);
+        const key = "demo:" + (req.socket.remoteAddress ?? "local");
+        const previous = loginAttempts.get(key);
+        const now = Date.now();
+        if (previous && previous.until > now && previous.count >= 20)
+          throw new AppError(
+            429,
+            "Too many demo requests; retry in 15 minutes"
+          );
+        loginAttempts.set(key, {
+          count: previous && previous.until > now ? previous.count + 1 : 1,
+          until:
+            previous && previous.until > now ? previous.until : now + 900000,
+        });
+        const user = await createDemo();
+        const session = await createSession(user);
+        res.setHeader("Set-Cookie", cookie(session.token));
+        return json(200, {
+          user,
+          csrf: session.csrf,
+          accounts: await memberships(user),
+        });
+      }
       if (
         ["/api/auth/login", "/api/auth/register"].includes(url.pathname) &&
         req.method === "POST"
       ) {
+        if (url.pathname.endsWith("register") && demoEnabled())
+          throw new AppError(
+            403,
+            "Use the private demo sandbox on this deployment"
+          );
         const key = req.socket.remoteAddress ?? "local";
         const t = Date.now();
         if (loginAttempts.size > 1000)
@@ -285,7 +319,7 @@ export async function start() {
     for (const group of streams.values()) for (const res of group) res.end();
   });
   const server = createServer();
-  server.listen(port, "127.0.0.1", () =>
+  server.listen(port, process.env.HOST ?? "127.0.0.1", () =>
     console.log(`InvestNexus v2: http://localhost:${port}`)
   );
   const close = () => {

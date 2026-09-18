@@ -9,49 +9,35 @@ Investment decision → Order / partial fills → Settlement → Ledger → Posi
 
 React provides the workspaces. A TypeScript backend uses PostgreSQL transactions, authenticated sessions, account permissions and an outbox for asynchronous reporting. Market data supports deterministic simulation or Alpha Vantage daily closing prices. Redis and RabbitMQ are optional.
 
-## Setup
+## One-command local demo
 
-Requires Node.js 22.13+ and PostgreSQL. Docker is optional.
+Requires Node.js 22.13+. From the repository root:
 
 ```sh
 git clone https://github.com/yundii/InvestNexus.git
-cd InvestNexus/v2
-npm ci
-cp .env.example .env
-npm run build
+cd InvestNexus
+npm run demo
 ```
 
-Start PostgreSQL in a separate terminal from `InvestNexus/v2`. Choose one option:
+The launcher installs missing dependencies, creates `v2/.env` if needed, starts local PostgreSQL when port 55432 is available, builds the UI/API, migrates and seeds the database, and starts the API plus both workers. Open [http://localhost:4200](http://localhost:4200). Press Ctrl+C to stop the stack. Existing environment settings and database records are preserved. A database already running at the configured address is reused and left running on exit.
 
-```sh
-# Docker
-docker compose up -d postgres
+The first launch downloads PostgreSQL binaries and dependencies. Later launches reuse them. If the API port is in use, stop that process first. To use an external database, configure `DATABASE_URL` in `v2/.env`; the launcher validates connectivity instead of starting a local database.
 
-# Or a real local PostgreSQL process without Docker
-npm run db:local
-```
+## Online demo deployment
 
-Both options use port 55432. Once PostgreSQL is running, start the application from `InvestNexus/v2`:
+[Deploy on Render](https://render.com/deploy?repo=https://github.com/yundii/InvestNexus)
 
-```sh
-npm run migrate
-npm run demo:seed
-npm start
-```
+`render.yaml` provisions a web service, report worker, market worker and a dedicated PostgreSQL database. These are **billable resources**; review the plans and charges in your Render account before creating them. The blueprint is deployment-ready; a hosted URL is not available until an account owner deploys it.
 
-Start each worker in its own terminal, also from `InvestNexus/v2`:
+1. Connect this repository in Render using the deployment link.
+2. Review the resource plans and deploy the blueprint.
+3. Wait for all three services to become healthy, then open the web service's generated HTTPS URL.
+4. Click **Start private demo →** to create your own $100,000 simulation account. Switch between Investment, Operations and Client to run the walkthrough below.
+5. Validate the deployed demo using the remote browser-test command in the Validation section.
 
-```sh
-# Report generation
-npm run worker
-```
+Demo mode requires `DEMO_MODE=true` and `MARKET_PROVIDER=mock`. Each visitor gets an isolated portfolio, with all three roles only within that sandbox. Normal registration is disabled on the public demo. Sessions expire after eight hours; losing the session requires creating a new sandbox. No shared public passwords are seeded. The blueprint uses secure cookies, a private database and the same application/worker code as local startup.
 
-```sh
-# Scheduled and requested market-data refreshes
-npm run market:worker
-```
-
-Open [http://localhost:4200](http://localhost:4200). Build before the first launch. Environment files, generated bundles and local database data are excluded from Git.
+Demo capacity defaults to 1,000 visitor accounts (`DEMO_MAX_ACCOUNTS`) and is enforced transactionally. Accounts are retained; capacity does not automatically reset. Monitor usage and manage demo data through the hosting account. Use a dedicated simulation database, never a real portfolio database. Node.js hosting requires `HOST=0.0.0.0`; local binding defaults to `127.0.0.1`. The API health check is `/api/health` and verifies database connectivity. Configuration follows the [Render Blueprint reference](https://render.com/docs/blueprint-spec).
 
 ## Demo accounts
 
@@ -130,6 +116,9 @@ Default queues are `investnexus.reports` and `investnexus.reports.dead`; overrid
 ## Repository
 
 ```text
+package.json       Root demo command
+scripts/demo.mjs   Local stack launcher
+render.yaml        Hosted demo blueprint
 v2/
   ui/          React workspaces and styles
   src/         TypeScript API, domain logic and workers
@@ -137,6 +126,7 @@ v2/
   scripts/     Build, database and operational commands
   public/      HTML entry point
   test/        Domain and integration tests
+  e2e/         Browser workflow tests
 .github/workflows/  Continuous integration
 ```
 
@@ -144,17 +134,29 @@ The `v2/` directory contains the application. It has one dependency manifest and
 
 ## Validation
 
-From `v2/`:
+With PostgreSQL running, execute from `v2/`:
 
 ```sh
 npm run build
 npm test
 npm run test:integration
+npx playwright install chromium
+npm run test:e2e
 ```
 
-Integration tests create and remove isolated databases; the test user needs CREATEDB. Configure `RABBITMQ_URL` and `REDIS_URL` for optional service tests, otherwise those tests are explicitly skipped. GitHub Actions supplies PostgreSQL, RabbitMQ and Redis.
+The browser suite uses a disposable database and starts the real API, report worker and market worker on port 4300. It creates private demo accounts, executes partial fills, settles both trades, investigates a reconciliation exception, closes two business days and downloads the client JSON report. It verifies unchanged ledger entries across market movements, benchmark history, visitor isolation and session restoration. Test databases are removed afterward.
 
-Tests cover partial fills, exact-once posting, concurrent requests and settlements, rollback on database failures, sessions/CSRF/account isolation, immutable daily valuations, reconciliation gates, refresh failures, frozen reports, benchmark calculations, report retries and cache invalidation.
+To test a deployed mock demo instead:
+
+```sh
+PLAYWRIGHT_BASE_URL=https://your-demo.onrender.com npm run test:e2e
+```
+
+Remote tests create three isolated visitor sandboxes; they do not use shared accounts or reset existing portfolios. The target must expose the private demo entry point. Keep this command pointed at a simulation deployment.
+
+Database tests also use isolated databases. The test user needs CREATEDB. Configure `RABBITMQ_URL` and `REDIS_URL` for optional service tests, otherwise those cases are explicitly skipped. The [Playwright web-server integration](https://playwright.dev/docs/test-webserver) starts the local browser-test stack automatically.
+
+GitHub Actions supplies PostgreSQL, RabbitMQ and Redis, runs the domain/database/browser suites, and uploads an HTML report, failure traces/screenshots and the downloaded client report as `browser-workflow-results`. The suite contains 29 tests: nine domain, eighteen database/API and two browser tests.
 
 ## Scope
 

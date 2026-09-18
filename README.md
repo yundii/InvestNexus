@@ -1,187 +1,108 @@
-# InvestNexus — Real-Time Investment Dashboard
+# InvestNexus — Mini Investment Management Platform
 
-A comprehensive stock management platform built with React, Node.js, MySQL, and deployed on AWS with real-time capabilities and enterprise-grade performance optimizations.
+InvestNexus v2 is a runnable local MVP of the investment lifecycle: order creation and approval, simulated trade execution, settlement, ledger-derived positions, reconciliation, and client reporting.
 
-## 🎬 Demo
-[Watch Demo Video](https://www.youtube.com/watch?v=M2_N8s5u4L8)
+The original React / Express dashboard remains in `client/` and `api/`. The new workflow prototype lives independently in `v2/` and requires no npm dependencies or external services.
 
-## 🚀 Key Features
+## Quick start
 
-- **Real-Time Stock Dashboard**: Live price updates via WebSocket connections with 30-second refresh intervals
-- **Simulated Portfolio Management**: Track holdings, P&L calculations, and trading history
-- **Interactive Stock Analysis**: Dynamic price charts with multiple timeframes (1D, 5D, 1M, 3M, 6M, 1Y, 5Y, YTD)
-- **Market Intelligence**: Trending stocks, market news, and industry-specific financial updates
-- **Responsive Design**: Consistent user experience across desktop and mobile devices
+Requires **Node.js 22+**.
 
-## 🏗️ Architecture Overview
-
-### Frontend (React)
-- **Component Architecture**: Modular React components with hooks-based state management
-- **Real-Time Updates**: WebSocket client integration for live data streaming
-- **Data Visualization**: Interactive charts using Recharts library
-- **Responsive UI**: CSS Grid/Flexbox implementation for cross-device compatibility
-
-### Backend (Node.js + Express)
-- **RESTful API Design**: Comprehensive endpoint structure for authentication, portfolio, and market data
-- **Real-Time Broadcasting**: Socket.io WebSocket implementation for live price updates
-- **Authentication**: JWT token-based security with HTTP-only cookies
-- **Rate Limiting**: Smart API management to handle external service constraints
-
-### Database & Caching
-- **Primary Database**: MySQL with Prisma ORM for type-safe database operations
-- **Caching Strategy**: Redis implementation reducing fetch latency by 60%
-- **Connection Pooling**: Optimized database connections for concurrent user handling
-
-## 📊 Database Schema
-
-### Core Tables
-- **Users**: Authentication and profile management
-- **Stocks**: Market data and company information  
-- **PurchasedStock**: Portfolio holdings and transaction history
-- **FinanceNews**: Curated financial news and market updates
-
-### Key Relationships
-```sql
-Users (1:N) PurchasedStock (N:1) Stock
-Users (1:N) Watchlist (N:1) Stock  
-Stock (1:N) FinanceNews
+```sh
+git clone https://github.com/yundii/InvestNexus.git
+cd InvestNexus/v2
+npm start
 ```
 
-## 🔧 Technical Implementation
+Open **http://localhost:4100**. Run the domain tests with:
 
-### Performance Optimizations
-- **Redis Caching**: 
-  - Stock prices cached for 30 seconds
-  - Portfolio calculations cached for 2 minutes
-  - 60% reduction in API response latency
-- **WebSocket Broadcasting**: Eliminates constant polling overhead
-- **Database Indexing**: Optimized queries on user portfolios and stock symbols
-
-### External API Integration
-- **Alpha Vantage API**: Real-time stock data and time series information
-- **Real-Time Finance Data API**: Market trends and news via RapidAPI
-- **Seeking Alpha API**: Detailed historical charts and analysis data
-
-### Real-Time Data Flow
-1. Background jobs fetch latest prices every 30 seconds during market hours
-2. Data updates cached in Redis and broadcast via WebSocket
-3. Frontend receives real-time updates without page refresh
-4. Portfolio values recalculated and displayed instantly
-
-## ☁️ AWS Deployment Architecture
-
-### Infrastructure Setup
-- **EC2 Auto Scaling**: t3.medium instances with dynamic scaling (2-6 instances)
-  - Scale up: CPU > 70% for 3 minutes
-  - Scale down: CPU < 30% for 5 minutes
-- **Application Load Balancer**: Traffic distribution with health checks
-- **Supporting Services**: RDS MySQL, ElastiCache Redis, S3 for static assets
-
-### Deployment Pipeline
-- **CI/CD**: GitHub Actions with automated testing and deployment
-- **Containerization**: Docker images pushed to Amazon ECR
-- **Rolling Deployment**: Zero-downtime updates with health verification
-- **55% deployment time reduction** (20 minutes → 9 minutes)
-
-## 🛠️ Technology Stack
-
-| Layer | Technologies |
-|-------|-------------|
-| **Frontend** | React, WebSocket Client, Recharts, CSS Grid/Flexbox |
-| **Backend** | Node.js, Express.js, Socket.io, JWT Authentication |
-| **Database** | MySQL, Prisma ORM, Redis Caching |
-| **Infrastructure** | AWS EC2, ALB, RDS, ElastiCache, S3 |
-| **DevOps** | Docker, GitHub Actions, Amazon ECR |
-| **External APIs** | Alpha Vantage, RapidAPI, Seeking Alpha |
-
-## 📡 API Endpoints
-
-### Authentication & User Management
-```
-POST /api/auth/register     - User registration
-POST /api/auth/login        - User authentication  
-POST /api/auth/logout       - Session termination
-PUT  /api/users/profile     - Profile updates
+```sh
+npm test
 ```
 
-### Portfolio & Trading
+The simulation starts with $100,000 cash. Changes persist in `v2/data/platform.json`, which is excluded from Git. The server binds to localhost.
+
+## Three workspaces
+
+| Workspace | Features |
+| --- | --- |
+| Investment | Fixed mock quotes, market/limit orders, approval, partial fills, order lifecycle, settled holdings |
+| Operations | T+1 weekday settlement, failed settlement retries, cash/security ledger, broker-position reconciliation, resolution notes, audit timeline |
+| Client portal | Portfolio value, allocation, realized/unrealized P&L, settlement snapshots, transaction history, downloadable JSON report |
+
+## Demo workflow
+
+1. Create a **BUY 100 MSFT** market order in Investment and approve it.
+2. Execute a fill of **60** shares, then the remaining **40**. The order transitions from `PARTIALLY_FILLED` to `FILLED`.
+3. Switch to Operations and advance the business date. Settle both fills.
+4. Holdings now show 100 MSFT shares. Cash is $58,990 and portfolio value is $99,990, reflecting two $5 execution fees.
+5. Reconcile MSFT against **98** broker-reported shares. Investigate the two-share difference and resolve it with a note.
+6. View the Client portal and export the report.
+
+To demonstrate failure handling, execute a BUY 1,000 MSFT order, advance the date and attempt settlement. Insufficient cash produces a failed settlement without changing the ledger.
+
+## Architecture
+
+```text
+Browser: Investment / Operations / Client portal
+                  │ HTTP commands + SSE refresh
+                  ▼
+          Node.js HTTP adapter
+                  │
+                  ▼
+     Domain commands and audit events
+     Orders → Trades → Settlement
+                         │
+                         ▼
+                  Append-only ledger
+                         │ replay
+                         ▼
+                 Positions / Valuation
+                         │
+                         ▼
+                 Report snapshots
+                  │
+                  ▼
+       Atomic local JSON persistence
 ```
-GET  /api/portfolio              - User holdings
-POST /api/portfolio/purchase     - Stock purchase simulation
-GET  /api/purchased-stocks       - Trading history
-POST /api/like-stock            - Watchlist management
+
+Orders and trades are separate entities. Execution does not immediately mutate holdings: successful settlement appends ledger entries, after which positions are derived by replay. Repeated settlement is rejected. Failed commands do not commit partial state.
+
+Money is represented as integer USD cents; shares are integers. Each fill carries a $5 fee. T+1 skips weekends; exchange holidays are not modeled. Audit events are stored with the command, and server-sent events notify browsers to reload the committed state.
+
+## Repository structure
+
+```text
+v2/
+  domain/platform.js       Business commands and portfolio projections
+  domain/platform.test.js Domain tests
+  server.js               HTTP, SSE, and persistence adapter
+  public/                 Responsive browser UI
+  README.md               Chinese setup, demo, and implementation notes
+api/                      Original Express / Prisma backend
+client/                   Original React dashboard
 ```
 
-### Market Data & News
-```
-GET  /api/stocks/search         - Stock symbol search
-GET  /api/stocks/:symbol        - Stock details and pricing
-GET  /api/stock-news/:symbol    - Company-specific news
-GET  /api/topic-news/:topic     - Industry news by category
-```
+## Validation
 
-## 🎯 Key Achievements
+The domain test suite covers partial fills, settlement timing, duplicate settlement rejection, insufficient cash, sell-side inventory checks, persona validation, and reconciliation resolution. The browser workflow was checked from order creation through settlement and the client holdings report.
 
-- **Real-Time Performance**: 30-second price update intervals with WebSocket broadcasting
-- **Scalability**: Auto-scaling infrastructure supporting 500-1000 concurrent users
-- **Data Coverage**: 3000+ US stocks with comprehensive market data
-- **Latency Optimization**: 60% reduction in data fetch times through Redis caching
-- **Deployment Efficiency**: 55% faster deployment cycle with automated CI/CD
+## MVP boundaries
 
-## 🔒 Security Features
+This version uses **fixed mock quotes, simulated execution, single-account JSON persistence, and synchronous in-process workflows**. It does not implement PostgreSQL, RabbitMQ, Redis, background workers, or real broker connectivity.
 
-- JWT-based authentication with HTTP-only cookies
-- Input validation and sanitization
-- Rate limiting for API protection
-- Secure password hashing with bcrypt
+Persona switching is a workflow UI, not authentication: the actor is supplied by the request. This is a localhost demo, not a publicly deployable financial application. Persistence supports one process; the ledger is application-level append-only, not double-entry accounting or database-enforced immutability.
 
-## 📱 User Experience
+The value chart shows settlement snapshots, not daily market performance. Benchmark comparisons, cash-flow-adjusted returns, TWR/IRR, multi-account isolation, and migration of legacy data are future work.
 
-### Core Functionality
-- **Homepage**: Market overview with portfolio summary
-- **Explore**: Advanced stock search with trending data
-- **Stock Details**: Interactive charts with multiple timeframes
-- **Portfolio**: Real-time P&L tracking with related news
-- **Analysis**: Basic portfolio performance metrics
-- **Profile**: User settings and preference management
+## Roadmap
 
-### Responsive Design
-- Mobile-first approach with CSS Grid/Flexbox
-- Consistent user experience across all device types
-- Touch-optimized interactions for mobile users
+- TypeScript and PostgreSQL transactions, schema migrations, and unique posting constraints.
+- Trusted sessions, RBAC, account isolation, and command idempotency keys.
+- Transactional outbox and RabbitMQ workers with idempotent consumers and retries.
+- Isolated market-data providers, PostgreSQL price history, and Redis caches.
+- React/Next.js integration, daily performance and benchmark reporting, Docker Compose.
 
-## 🚦 Getting Started
+See the [v2 guide in Chinese](v2/README.md) for the detailed demo and scope. The [original dashboard README](docs/legacy-dashboard.md) is preserved as historical documentation; its infrastructure and performance claims do not describe the v2 MVP.
 
-1. **Clone Repository**
-   ```bash
-   git clone [repository-url]
-   cd investnexus
-   ```
-
-2. **Environment Setup**
-   ```bash
-   npm install
-   # Configure environment variables for API keys and database
-   ```
-
-3. **Database Migration**
-   ```bash
-   npx prisma migrate dev
-   npx prisma generate
-   ```
-
-4. **Start Development Server**
-   ```bash
-   npm run dev
-   ```
-
-## 📈 Performance Metrics
-
-- **Response Time**: < 200ms average API response
-- **Cache Hit Rate**: 85% for frequently accessed stock data  
-- **Uptime**: 99.9% with AWS Auto Scaling and Load Balancing
-- **Concurrent Users**: Tested up to 1000 simultaneous connections
-
----
-
-*Built with modern web technologies and deployed on AWS for enterprise-grade reliability and performance.*
+[Original dashboard demo](https://www.youtube.com/watch?v=M2_N8s5u4L8)

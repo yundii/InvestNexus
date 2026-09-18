@@ -25,7 +25,7 @@ export default function SearchContainer() {
       const response = await fetch(url, options);
       const data = await response.json();
       
-      // 只保留 USD 货币的结果
+      // Keep only results denominated in USD
       const usdResults = data.bestMatches.filter(match => match['8. currency'] === 'USD');
       setSuggestions(usdResults);
     } catch (error) {

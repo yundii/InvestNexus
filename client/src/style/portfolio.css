@@ -60,7 +60,7 @@
   background: #f5f5f5;
   border-radius: 4px;
 }
-/* 复用 explore.css 的表格样式 */
+/* Reuse the table styles from explore.css */
 .portfolio-section {
     background-color: #d5dbd5;
     border-radius: 24px;

@@ -4,6 +4,8 @@ InvestNexus v2 models the investment lifecycle: decisions and orders → simulat
 
 **Milestone 2 is implemented:** dated market data, ledger-derived valuation, realized/unrealized P&L, full cash/position reconciliation, immutable daily closes, and client performance versus VTI. These run on the TypeScript/PostgreSQL backend with account roles and transactional report outbox. The original dashboard remains in `api/` and `client/`.
 
+For the complete setup instructions and walkthrough, see the [English v2 guide](v2/README.md).
+
 ## Quick start
 
 Requires **Node.js 22.13+** and PostgreSQL. Docker is optional.

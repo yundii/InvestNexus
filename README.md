@@ -119,7 +119,7 @@ npm start
 # http://localhost:3000/platform
 ```
 
-The legacy dashboard still uses its original port-8000 API and MySQL credentials. V2 sessions are separate. An explicit user importer preserves legacy bcrypt passwords; legacy positions are not automatically converted into financial postings. See the [Chinese setup and migration guide](v2/README.md).
+The legacy dashboard still uses its original port-8000 API and MySQL credentials. V2 sessions are separate. An explicit user importer preserves legacy bcrypt passwords; legacy positions are not automatically converted into financial postings. See the [setup and migration guide](v2/README.md).
 
 ## Optional RabbitMQ
 
@@ -149,4 +149,4 @@ This is a **local simulation**, not real trading. Prices default to deterministi
 
 Redis is an optional disposable market-data cache; PostgreSQL remains the financial source of truth. PostgreSQL replaces local JSON persistence; the old JSON file is retained locally and is not automatically imported. Database triggers provide application-level protection, not tamper-proof storage against a database owner. Production work still requires HTTPS/secure cookies, managed secrets, least-privilege database roles, backup/recovery, distributed rate limiting, and operational monitoring.
 
-[Detailed guide in Chinese](v2/README.md) · [Original dashboard documentation](docs/legacy-dashboard.md) · [Original demo video](https://www.youtube.com/watch?v=M2_N8s5u4L8)
+[Detailed setup guide](v2/README.md) · [Original dashboard documentation](docs/legacy-dashboard.md) · [Original demo video](https://www.youtube.com/watch?v=M2_N8s5u4L8)

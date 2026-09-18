@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import {
   randomBytes,
   randomUUID,
@@ -21,7 +20,6 @@ export async function hashPassword(password: string) {
   return `scrypt:${salt}:${key.toString("hex")}`;
 }
 export async function verifyPassword(password: string, hash: string) {
-  if (/^\$2[aby]\$/.test(hash)) return bcrypt.compare(password, hash);
   const [scheme, salt, hex] = hash.split(":");
   if (scheme !== "scrypt" || !salt || !hex) return false;
   const key = (await scrypt(password, salt, 64)) as Buffer;

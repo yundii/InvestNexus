@@ -198,7 +198,7 @@ test("mutating routes require CSRF and reject foreign origins", async () => {
   });
   assert.equal(r.status, 403);
 });
-test("configured React proxy origin can authenticate", async () => {
+test("explicitly trusted origin can authenticate", async () => {
   const previous = process.env.TRUSTED_ORIGINS;
   process.env.TRUSTED_ORIGINS = "http://localhost:3000";
   try {
@@ -599,28 +599,6 @@ test("report failures roll back generation and respect retry backoff", async () 
   );
   assert.equal(await processReport(event.id), true);
   assert.equal(await processReport(event.id), false);
-});
-
-test("legacy user import preserves bcrypt credentials and is repeatable", async () => {
-  const bcrypt = (await import("bcryptjs")).default;
-  const { importLegacyUsers } = await import("../src/legacy-users.js");
-  const password = "OriginalPassword!";
-  const exported = [
-    {
-      id: 42,
-      email: "Legacy@integration.local",
-      userName: "Legacy Investor",
-      password: await bcrypt.hash(password, 10),
-    },
-  ];
-  assert.equal((await importLegacyUsers(exported)).imported, 1);
-  assert.equal((await importLegacyUsers(exported)).skipped, 1);
-  const r = await request("/api/auth/login", undefined, {
-    email: exported[0].email,
-    password,
-  });
-  assert.equal(r.status, 200);
-  assert.deepEqual(r.body.accounts[0].roles, ["investment", "client"]);
 });
 
 test("certified daily valuation freezes market prices, reconciliation and benchmark performance", async () => {

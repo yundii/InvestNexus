@@ -15,7 +15,6 @@
     "test:integration": "node --env-file-if-exists=.env --import tsx --test test/*.integration.ts",
     "worker": "node --env-file-if-exists=.env dist/worker.js",
     "worker:retry": "node --env-file-if-exists=.env --import tsx scripts/retry-reports.ts",
-    "legacy:import": "node --env-file-if-exists=.env --import tsx scripts/import-legacy-users.ts",
     "market:worker": "node --env-file-if-exists=.env dist/market-worker.js",
     "market:refresh": "node --env-file-if-exists=.env --import tsx scripts/refresh-market.ts"
   },
@@ -24,7 +23,6 @@
   },
   "dependencies": {
     "amqplib": "^2.0.1",
-    "bcryptjs": "^3.0.3",
     "pg": "^8.16.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -1,14 +1,17 @@
-# InvestNexus — Mini Investment Management Platform
+# InvestNexus
 
-InvestNexus v2 models the investment lifecycle: decisions and orders → simulated execution → settlement → ledger-derived holdings → market prices → valuation / P&L → reconciliation → daily snapshots → client performance reports.
+A mini investment-management platform with Investment, Operations and Client workspaces.
 
-**Milestone 2 is implemented:** dated market data, ledger-derived valuation, realized/unrealized P&L, full cash/position reconciliation, immutable daily closes, and client performance versus VTI. These run on the TypeScript/PostgreSQL backend with account roles and transactional report outbox. The original dashboard remains in `api/` and `client/`.
+```text
+Investment decision → Order / partial fills → Settlement → Ledger → Positions
+    → Market prices → Valuation / P&L → Reconciliation → Daily snapshot → Client report
+```
 
-For the complete setup instructions and walkthrough, see the [English v2 guide](v2/README.md).
+React provides the workspaces. A TypeScript backend uses PostgreSQL transactions, authenticated sessions, account permissions and an outbox for asynchronous reporting. Market data supports deterministic simulation or Alpha Vantage daily closing prices. Redis and RabbitMQ are optional.
 
-## Quick start
+## Setup
 
-Requires **Node.js 22.13+** and PostgreSQL. Docker is optional.
+Requires Node.js 22.13+ and PostgreSQL. Docker is optional.
 
 ```sh
 git clone https://github.com/yundii/InvestNexus.git
@@ -18,135 +21,145 @@ cp .env.example .env
 npm run build
 ```
 
-Start PostgreSQL in a separate terminal, choosing **one** option:
+Start PostgreSQL in a separate terminal from `InvestNexus/v2`. Choose one option:
 
 ```sh
 # Docker
-cd v2
 docker compose up -d postgres
 
-# Or a real local PostgreSQL process provided by the dev dependency
-cd v2
+# Or a real local PostgreSQL process without Docker
 npm run db:local
 ```
 
-With PostgreSQL running:
+Both options use port 55432. Once PostgreSQL is running, start the application from `InvestNexus/v2`:
 
 ```sh
-cd v2
 npm run migrate
 npm run demo:seed
 npm start
 ```
 
-In another terminal, start the report worker:
+Start each worker in its own terminal, also from `InvestNexus/v2`:
 
 ```sh
-cd v2
+# Report generation
 npm run worker
 ```
 
-Start the market worker in another terminal:
-
 ```sh
-cd v2
+# Scheduled and requested market-data refreshes
 npm run market:worker
 ```
 
-Open **http://localhost:4200**. The example environment provisions demo users with password **`LocalDemo-2026!`**. These are local simulation accounts only.
+Open [http://localhost:4200](http://localhost:4200). Build before the first launch. Environment files, generated bundles and local database data are excluded from Git.
 
-| Login | Account | Permissions |
+## Demo accounts
+
+The example environment sets `DEMO_PASSWORD=LocalDemo-2026!`. Change it before first seeding if desired. Repeated seeding preserves existing passwords and account data.
+
+| Login | Permissions | Account |
 | --- | --- | --- |
-| `pm@investnexus.local` | Horizon Growth | Investment + client reporting |
-| `ops@investnexus.local` | Horizon Growth | Operations + client reporting |
-| `client@investnexus.local` | Horizon Growth | Read-only client portal |
-| `other@investnexus.local` | Independent Growth | Investment + client reporting on a separate account |
+| pm@investnexus.local | Investment / Client | Horizon Growth |
+| ops@investnexus.local | Operations / Client | Horizon Growth |
+| client@investnexus.local | Client (read-only) | Horizon Growth |
+| other@investnexus.local | Investment / Client | Independent Growth |
 
-Self-registration creates a separate simulated account with investment/client roles. Operations permissions are provisioned by a trusted database administrator or the local demo seed script; a browser cannot grant itself roles.
+Registration creates an independent simulated account with $100,000 in initial cash and investment/client roles. Operations permissions require trusted provisioning. Memberships are verified server-side on every account request.
 
-## Demo
+## Walkthrough
 
-1. Sign in as the PM, create and approve a **BUY 100 MSFT** market order.
-2. Execute a fill of **60** shares, then the remaining **40**. Observe `PARTIALLY_FILLED` → `FILLED`.
-3. Sign out and sign in as Operations. Advance the business date and settle both fills.
-4. Operations refreshes market data and waits for COMPLETE. Cash and share quantities remain ledger-derived; market prices change valuation and P&L.
-5. Submit the full broker statement with current cash, business date and positions. Try 98 MSFT shares to create a 2-share exception, then resolve it with an investigation note. The report retains acknowledged exceptions.
-6. Close valuation & publish after fresh prices and current-ledger reconciliation. Each date closes once and blocks further financial writes until advancing the date.
-7. The client views daily/cumulative performance, VTI price returns, excess returns and certified history, then downloads the frozen JSON report after the report worker completes.
-8. Advance, refresh prices, reconcile and close again to create a multi-day performance series.
+1. Sign in as the PM. Create and approve BUY 100 MSFT, then execute fills of 60 and 40 shares.
+2. Sign in as Operations. Advance the business date and settle each fill. The ledger records 100 shares and $58,990 cash, including two $5 fees.
+3. Refresh market data and wait for COMPLETE. Prices affect valuation and P&L; cash and quantities remain ledger-derived.
+4. Reconcile the full broker statement using current-date settled cash and positions JSON, such as `[{"symbol":"MSFT","quantity":98}]`. Omitted holdings are compared against zero broker shares.
+5. Investigate exceptions and resolve them with notes. Resolution does not change the ledger. Reports retain differences and notes as `RESOLVED_WITH_EXCEPTIONS`.
+6. Close daily valuation & publish report. Closing requires fresh prices, no refresh error and a full reconciliation matching the current ledger version. Each date closes once and blocks financial writes until the business date advances.
+7. In the Client portal, view daily/cumulative returns, VTI comparisons, excess returns and certified history. Export the frozen JSON report after the report worker completes.
+8. Advance, refresh, reconcile and close again to build a multi-day series.
 
-Market data defaults to a repeatable **mock** provider. To fetch actual daily closing prices, set `MARKET_PROVIDER=alpha-vantage` and your own `ALPHA_VANTAGE_API_KEY`, then restart the API and market worker. Failed refreshes preserve last good prices; stale or missing prices block certification. No real API credentials are included. The MVP uses weekday dates, unadjusted close prices, fixed initial capital and a price-return benchmark; it does not yet handle exchange holidays, cash-flow-adjusted performance, dividends or corporate actions. See [the detailed milestone guide](v2/README.md) for assumptions and optional Redis cache setup.
+## Market data and performance
 
-## Architecture
+The default `MARKET_PROVIDER=mock` supplies repeatable simulated history with a fixed anchor. It supports advancing demo dates and is labeled as simulated data.
 
-```text
-Shared React UI: Investment / Operations / Client
-                         │ HTTP + HttpOnly session + CSRF
-                         ▼
-                TypeScript modular backend
-                Orders → Trades → Settlement
-                         │ account lock + transaction
-                         ▼
-                     PostgreSQL
-           Ledger / Audit / Snapshots / Outbox
-                │ replay                   │
-                ▼                          ▼
-       Holdings / Valuation         Background report worker
-                               PostgreSQL polling or RabbitMQ
-                                           │ idempotent consumption
-                                           ▼
-                                    Generated reports
+To use your own Alpha Vantage key, update `.env` and restart the API and market worker:
 
-PostgreSQL NOTIFY → authenticated account-scoped SSE → UI refresh
+```dotenv
+MARKET_PROVIDER=alpha-vantage
+ALPHA_VANTAGE_API_KEY=your_own_key
+MARKET_POLL_SECONDS=3600
 ```
 
-- **Order ≠ trade:** one order supports multiple fills, approval, and market/limit validation.
-- **Ledger is the financial source:** integer USD cents and integer shares; holdings and weighted cost are derived by replay. Each fill incurs a $5 fee.
-- **Transactional settlement:** an account row lock serializes competing writes; settlement, ledger, audit, snapshot, and outbox commit together.
-- **Idempotency:** account-scoped request keys save the original response; reuse with changed payload or identity is rejected. Posting uniqueness and deferred database constraints require exactly matching security/fee entries for a settled trade.
-- **Append-only records:** database triggers reject modification of ledger entries, audit logs, snapshots, and generated reports through normal DML.
-- **Trusted access:** opaque server-side sessions, password hashing, CSRF protection, membership checks on state/report/command/event routes, and role checks on every mutation. Audit records identify the authenticated actor.
-- **Async reports:** workers process immutable settlement snapshots. Duplicate delivery is safe. RabbitMQ mode uses durable queues, persistent messages, publisher confirms, bounded retries, and a dead-letter queue.
+The adapter retrieves `TIME_SERIES_DAILY` closes for MSFT, AAPL, NVDA and VTI sequentially, subject to your quota. Failed refreshes preserve last good prices without publishing partial batches or switching providers. Future dates are rejected for actual-market requests. Earlier quotes are marked STALE and block execution and daily closing. Missing held-security prices produce an INCOMPLETE valuation with null values while preserving cash and positions. Settlement does not depend on market-data availability.
 
-## React integration
-
-The workspaces live in `client/src/platform/Platform.jsx`. The v2 build bundles this same component for the backend's local UI. The original React app also exposes it at **`/platform`**, with its development proxy forwarding `/api` to port 4200:
+Each price records provider, price date, fetch time and batch. Queries use only prices on or before the business date. Manual refresh:
 
 ```sh
-cd client
-npm ci
-npm start
-# http://localhost:3000/platform
+npm run market:refresh -- 2026-09-21
 ```
 
-The legacy dashboard still uses its original port-8000 API and MySQL credentials. V2 sessions are separate. An explicit user importer preserves legacy bcrypt passwords; legacy positions are not automatically converted into financial postings. See the [setup and migration guide](v2/README.md).
+Weighted costs use integer cents. Partial sales allocate rounded proportional costs; the final sale consumes remaining cost. Realized/unrealized P&L measures price gains and losses. Fees are displayed separately and deducted from portfolio value.
 
-## Optional RabbitMQ
+Cumulative return is `(portfolio value / initial capital - 1)`. VTI price return is normalized to the available inception-date close. Excess return is the percentage-point difference. Consecutive business-day closes produce daily returns; gaps produce interval returns with a null daily return. Reports freeze prices, holdings, reconciliation evidence, performance and settled transactions. Later refreshes do not rewrite them. Formal exports use `/api/report?scope=daily`.
+
+## Optional services
+
+### Redis market cache
 
 ```sh
-cd v2
+docker compose --profile cache up -d redis
+```
+
+Set `REDIS_URL=redis://127.0.0.1:56379` in `.env` and restart the API. `/api/market?accountId=...` caches quotes by immutable price IDs for 300 seconds. PostgreSQL remains the financial source of truth, and cache outages fall back to it. Operations can send a CSRF-protected `POST /api/market/cache?accountId=...` to clear this application's market cache.
+
+### RabbitMQ reports
+
+```sh
 docker compose --profile messaging up -d
 ```
 
-Set `RABBITMQ_URL` in `.env` using the example's commented value and restart `npm run worker`. Without that variable, the worker consumes the PostgreSQL outbox directly. Both modes generate the same reports.
+Set the following in `.env` and restart the report worker:
 
-## Verification
+```dotenv
+RABBITMQ_URL=amqp://investnexus:investnexus_local@127.0.0.1:5672
+```
+
+Without this setting, the worker polls the PostgreSQL outbox. RabbitMQ uses durable queues, persistent messages, publisher confirmations and acknowledgement after database commit. Snapshot uniqueness makes duplicate delivery safe. Failures use backoff, up to five attempts and a dead-letter queue. Restart the worker after connection loss; deployments should use a process manager.
+
+Default queues are `investnexus.reports` and `investnexus.reports.dead`; override with `RABBITMQ_QUEUE`. After fixing failed tasks, run `npm run worker:retry`. Pending exports return 409 while posted portfolio data remains available.
+
+## Repository
+
+```text
+v2/
+  ui/          React workspaces and styles
+  src/         TypeScript API, domain logic and workers
+  migrations/  PostgreSQL schema migrations
+  scripts/     Build, database and operational commands
+  public/      HTML entry point
+  test/        Domain and integration tests
+.github/workflows/  Continuous integration
+```
+
+The `v2/` directory contains the application. It has one dependency manifest and serves the UI and API together on port 4200.
+
+## Validation
+
+From `v2/`:
 
 ```sh
-cd v2
 npm run build
 npm test
 npm run test:integration
 ```
 
-Integration tests create and clean up an isolated PostgreSQL database. The test user therefore needs `CREATEDB`; the application itself does not need it.
+Integration tests create and remove isolated databases; the test user needs CREATEDB. Configure `RABBITMQ_URL` and `REDIS_URL` for optional service tests, otherwise those tests are explicitly skipped. GitHub Actions supplies PostgreSQL, RabbitMQ and Redis.
 
-Tests exercise partial fills, exact-once posting, duplicate/concurrent requests, overspending prevention, injected database failure and full rollback, session restoration/revocation/expiry, CSRF, role/account isolation, report idempotency, and legacy-password compatibility. With `RABBITMQ_URL`, the suite also launches a worker against a real broker and tests duplicate delivery. With `REDIS_URL`, the suite verifies cache invalidation without changing the book. Tests also cover refresh failures, immutable daily valuations, reconciliation gates, frozen reports, and benchmark returns. GitHub Actions supplies PostgreSQL, RabbitMQ and Redis services.
+Tests cover partial fills, exact-once posting, concurrent requests and settlements, rollback on database failures, sessions/CSRF/account isolation, immutable daily valuations, reconciliation gates, refresh failures, frozen reports, benchmark calculations, report retries and cache invalidation.
 
 ## Scope
 
-This is a **local simulation**, not real trading. Prices default to deterministic mock history with an optional Alpha Vantage daily provider; T+1 skips weekends but not exchange holidays. Certified returns are based on opening capital and daily snapshots with VTI price history, without TWR/IRR. Price-only realized P&L and execution fees are shown separately.
+Trading and the broker are simulated. T+1 skips weekends but has no exchange-holiday calendar. Each fill costs $5. Returns assume fixed initial capital; TWR/IRR, subsequent funding flows, dividend reinvestment, splits and corporate actions are not supported. Actual-market data uses unadjusted closes and the benchmark measures price return rather than total return. A performance series cannot mix providers.
 
-Redis is an optional disposable market-data cache; PostgreSQL remains the financial source of truth. PostgreSQL replaces local JSON persistence; the old JSON file is retained locally and is not automatically imported. Database triggers provide application-level protection, not tamper-proof storage against a database owner. Production work still requires HTTPS/secure cookies, managed secrets, least-privilege database roles, backup/recovery, distributed rate limiting, and operational monitoring.
+Account locks serialize financial writes. Settlement, ledger, audit, snapshots and outbox updates commit together. Integer amounts, unique postings and deferred matching constraints protect accounting consistency. Append-only database triggers protect ledger, audit, price and daily/report records. This is not double-entry accounting or tamper-proof storage against a database owner.
 
-[Detailed setup guide](v2/README.md) · [Original dashboard documentation](docs/legacy-dashboard.md) · [Original demo video](https://www.youtube.com/watch?v=M2_N8s5u4L8)
+Authentication uses scrypt passwords, opaque eight-hour sessions, HttpOnly/SameSite cookies, CSRF and Origin checks, and server-side account roles. The service listens on localhost. Production requires HTTPS (`COOKIE_SECURE=true`), managed secrets, least-privilege database roles, backup/recovery, shared rate limiting and monitoring.

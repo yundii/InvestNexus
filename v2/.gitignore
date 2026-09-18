@@ -1,7 +1,0 @@
-node_modules/
-data/
-dist/
-public/app.js
-.env
-
-public/app.css

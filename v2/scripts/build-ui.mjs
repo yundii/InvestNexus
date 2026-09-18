@@ -4,7 +4,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 await build({
   stdin: {
     contents:
-      "import React from 'react'; import {createRoot} from 'react-dom/client'; import Platform from '../client/src/platform/Platform.jsx'; createRoot(document.getElementById('root')).render(React.createElement(Platform));",
+      "import React from 'react'; import {createRoot} from 'react-dom/client'; import Platform from './ui/Platform.jsx'; createRoot(document.getElementById('root')).render(React.createElement(Platform));",
     resolveDir: root,
     loader: "jsx",
   },
@@ -19,4 +19,4 @@ await build({
   },
   define: { "process.env.NODE_ENV": '"production"' },
 });
-console.log("Shared React workspaces built.");
+console.log("React workspaces built.");

@@ -1,9 +1,9 @@
-name: InvestNexus v2
+name: InvestNexus
 on:
   push:
-    paths: ['v2/**', 'client/src/platform/**', '.github/workflows/v2-ci.yml']
+    paths: ['v2/**', 'README.md', '.github/workflows/v2-ci.yml']
   pull_request:
-    paths: ['v2/**', 'client/src/platform/**', '.github/workflows/v2-ci.yml']
+    paths: ['v2/**', 'README.md', '.github/workflows/v2-ci.yml']
 permissions:
   contents: read
 jobs:

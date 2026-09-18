@@ -1,4 +1,4 @@
-import type { Performance, PerformancePoint } from "./types.js";
+import type { PerformancePoint } from "./types.js";
 export function nextBusinessDate(date: string) {
   const d = new Date(date + "T12:00:00Z");
   do {
@@ -42,9 +42,4 @@ export function performancePoint(
     benchmarkReturnPct,
     excessReturnPct: cumulativeReturnPct - benchmarkReturnPct,
   };
-}
-export function performanceHistory(
-  rows: { payload: { performance: Performance } }[]
-): Performance | null {
-  return rows.at(-1)?.payload.performance ?? null;
 }

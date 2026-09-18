@@ -7,6 +7,7 @@ import type {
   Role,
   AuditEvent,
 } from "./types.js";
+import { currentBusinessDate } from "./performance.js";
 import { AppError } from "./types.js";
 import { randomUUID } from "node:crypto";
 const id = () => randomUUID();
@@ -17,9 +18,9 @@ function check(ok: unknown, message: string): asserts ok {
 import { securities } from "./catalog.js";
 import { book, portfolio } from "./ledger.js";
 export { securities, portfolio };
-export function seed(): State {
+export function seed(date = now().slice(0, 10)): State {
   return {
-    date: now().slice(0, 10),
+    date: currentBusinessDate(date),
     orders: [],
     trades: [],
     ledger: [

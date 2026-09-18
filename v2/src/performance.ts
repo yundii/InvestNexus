@@ -1,4 +1,11 @@
 import type { PerformancePoint } from "./types.js";
+export function currentBusinessDate(
+  date = new Date().toISOString().slice(0, 10)
+) {
+  const d = new Date(date + "T12:00:00Z");
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 export function nextBusinessDate(date: string) {
   const d = new Date(date + "T12:00:00Z");
   do {

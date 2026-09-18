@@ -50,7 +50,7 @@ export async function provisionAccount(
   const id = randomUUID();
   const s = seed();
   await c.query(
-    "INSERT INTO accounts(id,name,business_date) VALUES($1,$2,$3)",
+    "INSERT INTO accounts(id,name,business_date,inception_date) VALUES($1,$2,$3,$3)",
     [id, name, s.date]
   );
   await c.query(

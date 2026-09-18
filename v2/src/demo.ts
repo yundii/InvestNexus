@@ -3,6 +3,9 @@ import { transaction } from "./database.js";
 import { hashPassword, provisionAccount } from "./auth.js";
 import { AppError } from "./types.js";
 import type { Identity } from "./types.js";
+import { refreshMarket } from "./market.js";
+import { currentBusinessDate } from "./performance.js";
+import { MockMarketDataProvider } from "./market-provider.js";
 export function demoEnabled() {
   return (
     process.env.DEMO_MODE === "true" &&
@@ -20,7 +23,7 @@ export async function createDemo(): Promise<Identity> {
     userName: "Demo visitor",
   };
   const password = await hashPassword(randomBytes(32).toString("hex"));
-  return transaction(async (c) => {
+  const created = await transaction(async (c) => {
     await c.query("SELECT pg_advisory_xact_lock(73249003)");
     const count = await c.query(
       "SELECT count(*) AS count FROM users WHERE email LIKE '%@sandbox.investnexus.local'"
@@ -41,4 +44,7 @@ export async function createDemo(): Promise<Identity> {
     ]);
     return user;
   });
+  // Pure mock history is initialized before a visitor enters, including weekends.
+  await refreshMarket(currentBusinessDate(), new MockMarketDataProvider());
+  return created;
 }

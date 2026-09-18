@@ -27,10 +27,11 @@ function order(s: State, side: Side = "BUY", quantity = 100) {
   return o;
 }
 test("partial fills settle exactly once and derive holdings from ledger", () => {
-  const s = seed(),
+  const s = seed("2026-09-19"),
     o = order(s);
   const t = run(s, "execute", { id: o.id, quantity: 60 });
   assert.equal(o.status, "PARTIALLY_FILLED");
+  assert.equal(t.due, "2026-09-21");
   run(s, "execute", { id: o.id, quantity: 40 });
   assert.equal(o.status, "FILLED");
   assert.equal(portfolio(s).positions.length, 0);

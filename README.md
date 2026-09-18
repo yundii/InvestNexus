@@ -39,7 +39,7 @@ Demo mode requires `DEMO_MODE=true` and `MARKET_PROVIDER=mock`. Each visitor get
 
 Demo capacity defaults to 1,000 visitor accounts (`DEMO_MAX_ACCOUNTS`) and is enforced transactionally. Accounts are retained; capacity does not automatically reset. Monitor usage and manage demo data through the hosting account. Use a dedicated simulation database, never a real portfolio database. Node.js hosting requires `HOST=0.0.0.0`; local binding defaults to `127.0.0.1`. The API health check is `/api/health` and verifies database connectivity. Configuration follows the [Render Blueprint reference](https://render.com/docs/blueprint-spec).
 
-## Demo accounts
+## Local demo accounts
 
 The example environment sets `DEMO_PASSWORD=LocalDemo-2026!`. Change it before first seeding if desired. Repeated seeding preserves existing passwords and account data.
 
@@ -54,8 +54,8 @@ Registration creates an independent simulated account with $100,000 in initial c
 
 ## Walkthrough
 
-1. Sign in as the PM. Create and approve BUY 100 MSFT, then execute fills of 60 and 40 shares.
-2. Sign in as Operations. Advance the business date and settle each fill. The ledger records 100 shares and $58,990 cash, including two $5 fees.
+1. Open Investment workspace (local login: PM). Create and approve BUY 100 MSFT, then execute fills of 60 and 40 shares.
+2. Switch to Operations console (locally, sign out and log in as Ops). Advance the business date and settle each fill. The ledger records 100 shares and $58,990 cash, including two $5 fees.
 3. Refresh market data and wait for COMPLETE. Prices affect valuation and P&L; cash and quantities remain ledger-derived.
 4. Reconcile the full broker statement using current-date settled cash and positions JSON, such as `[{"symbol":"MSFT","quantity":98}]`. Omitted holdings are compared against zero broker shares.
 5. Investigate exceptions and resolve them with notes. Resolution does not change the ledger. Reports retain differences and notes as `RESOLVED_WITH_EXCEPTIONS`.
@@ -130,7 +130,7 @@ v2/
 .github/workflows/  Continuous integration
 ```
 
-The `v2/` directory contains the application. It has one dependency manifest and serves the UI and API together on port 4200.
+The `v2/` directory contains the application. Dependencies are defined in `v2/package.json`; the root manifest provides shortcut commands. The UI and API are served together on port 4200.
 
 ## Validation
 

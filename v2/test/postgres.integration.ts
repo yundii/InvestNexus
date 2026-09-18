@@ -123,6 +123,18 @@ before(async () => {
     "INSERT INTO account_memberships(user_id,account_id,roles) VALUES($1,$2,$3),($4,$2,$5)",
     [ops.id, pm.account, ["operations", "client"], client.id, ["client"]]
   );
+  const { refreshMarket } = await import("../src/market.js");
+  const { securities } = await import("../src/catalog.js");
+  await refreshMarket((await state(pm)).date, {
+    name: "mock",
+    getHistory: async (symbol, date) => [
+      {
+        symbol,
+        date,
+        price: securities.find((s) => s.symbol === symbol)!.price,
+      },
+    ],
+  });
   ops.account = pm.account;
   client.account = pm.account;
 });

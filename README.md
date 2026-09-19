@@ -23,32 +23,24 @@ The launcher installs missing dependencies, creates `v2/.env` if needed, starts 
 
 The first launch downloads PostgreSQL binaries and dependencies. Later launches reuse them. If the API port is in use, stop that process first. To use an external database, configure `DATABASE_URL` in `v2/.env`; the launcher validates connectivity instead of starting a local database.
 
-## Online demo deployment
+## Online demo
 
-[Deploy on Render](https://render.com/deploy?repo=https://github.com/yundii/InvestNexus)
+Open the public simulation at [https://yundii.github.io/InvestNexus/](https://yundii.github.io/InvestNexus/).
 
-`render.yaml` provisions a web service, report worker, market worker and a dedicated PostgreSQL database. These are **billable resources**; review the plans and charges in your Render account before creating them. The blueprint is deployment-ready; a hosted URL is not available until an account owner deploys it.
+The GitHub Pages build runs the complete walkthrough in the browser: investment decisions, partial fills, settlement, ledger-derived positions, market prices, valuation, reconciliation, two-day performance and report export. Click **Start private demo →** to begin. Data stays in that browser's local storage, each browser profile is isolated, and **Reset browser demo** creates a clean portfolio.
 
-1. Connect this repository in Render using the deployment link.
-2. Review the resource plans and deploy the blueprint.
-3. Wait for all three services to become healthy, then open the web service's generated HTTPS URL.
-4. Click **Start private demo →** to create your own $100,000 simulation account. Switch between Investment, Operations and Client to run the walkthrough below.
-5. Validate the deployed demo using the remote browser-test command in the Validation section.
-
-Demo mode requires `DEMO_MODE=true` and `MARKET_PROVIDER=mock`. Each visitor gets an isolated portfolio, with all three roles only within that sandbox. Normal registration is disabled on the public demo. Sessions expire after eight hours; losing the session requires creating a new sandbox. No shared public passwords are seeded. The blueprint uses secure cookies, a private database and the same application/worker code as local startup.
-
-Demo capacity defaults to 1,000 visitor accounts (`DEMO_MAX_ACCOUNTS`) and is enforced transactionally. Accounts are retained; capacity does not automatically reset. Monitor usage and manage demo data through the hosting account. Use a dedicated simulation database, never a real portfolio database. Node.js hosting requires `HOST=0.0.0.0`; local binding defaults to `127.0.0.1`. The API health check is `/api/health` and verifies database connectivity. Configuration follows the [Render Blueprint reference](https://render.com/docs/blueprint-spec).
+GitHub Pages serves static files, so this hosted simulation does not run PostgreSQL, server authentication or background workers. Use the one-command local demo when you want to exercise those production-style components. The browser build shares the platform's domain, valuation and reconciliation logic, and its full workflow runs in CI before deployment.
 
 ## Local demo accounts
 
 The example environment sets `DEMO_PASSWORD=LocalDemo-2026!`. Change it before first seeding if desired. Repeated seeding preserves existing passwords and account data.
 
-| Login | Permissions | Account |
-| --- | --- | --- |
-| pm@investnexus.local | Investment / Client | Horizon Growth |
-| ops@investnexus.local | Operations / Client | Horizon Growth |
-| client@investnexus.local | Client (read-only) | Horizon Growth |
-| other@investnexus.local | Investment / Client | Independent Growth |
+| Login                    | Permissions         | Account            |
+| ------------------------ | ------------------- | ------------------ |
+| pm@investnexus.local     | Investment / Client | Horizon Growth     |
+| ops@investnexus.local    | Operations / Client | Horizon Growth     |
+| client@investnexus.local | Client (read-only)  | Horizon Growth     |
+| other@investnexus.local  | Investment / Client | Independent Growth |
 
 Registration creates an independent simulated account with $100,000 in initial cash and investment/client roles. Operations permissions require trusted provisioning. Memberships are verified server-side on every account request.
 
@@ -118,23 +110,22 @@ Default queues are `investnexus.reports` and `investnexus.reports.dead`; overrid
 ```text
 package.json       Root demo command
 scripts/demo.mjs   Local stack launcher
-render.yaml        Hosted demo blueprint
+.github/workflows/ CI and GitHub Pages deployment
 v2/
-  ui/          React workspaces and styles
+  ui/          React workspaces, Pages entry point and styles
   src/         TypeScript API, domain logic and workers
   migrations/  PostgreSQL schema migrations
   scripts/     Build, database and operational commands
   public/      HTML entry point
   test/        Domain and integration tests
-  e2e/         Browser workflow tests
-.github/workflows/  Continuous integration
+  e2e/         Backend and Pages workflow tests
 ```
 
 The `v2/` directory contains the application. Dependencies are defined in `v2/package.json`; the root manifest provides shortcut commands. The UI and API are served together on port 4200.
 
 ## Validation
 
-With PostgreSQL running, execute from `v2/`:
+For the full backend, run from `v2/` with PostgreSQL available:
 
 ```sh
 npm run build
@@ -144,19 +135,28 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser suite uses a disposable database and starts the real API, report worker and market worker on port 4300. It creates private demo accounts, executes partial fills, settles both trades, investigates a reconciliation exception, closes two business days and downloads the client JSON report. It verifies unchanged ledger entries across market movements, benchmark history, visitor isolation and session restoration. Test databases are removed afterward.
-
-To test a deployed mock demo instead:
+Validate the static GitHub Pages build without a database:
 
 ```sh
-PLAYWRIGHT_BASE_URL=https://your-demo.onrender.com npm run test:e2e
+npm run build:pages
+npm run test:e2e:pages
 ```
 
-Remote tests create three isolated visitor sandboxes; they do not use shared accounts or reset existing portfolios. The target must expose the private demo entry point. Keep this command pointed at a simulation deployment.
+Preview it at [http://127.0.0.1:4301/InvestNexus/](http://127.0.0.1:4301/InvestNexus/) with `npm run preview:pages`.
+
+The browser suite uses a disposable database and starts the real API, report worker and market worker on port 4300. It creates private demo accounts, executes partial fills, settles both trades, investigates a reconciliation exception, closes two business days and downloads the client JSON report. It verifies unchanged ledger entries across market movements, benchmark history, visitor isolation and session restoration. Test databases are removed afterward.
+
+Test the deployed Pages simulation with the same end-to-end workflow:
+
+```sh
+PLAYWRIGHT_BASE_URL=https://yundii.github.io/InvestNexus/ npm run test:e2e:pages
+```
+
+The Pages test starts isolated browser profiles and never resets another visitor's data.
 
 Database tests also use isolated databases. The test user needs CREATEDB. Configure `RABBITMQ_URL` and `REDIS_URL` for optional service tests, otherwise those cases are explicitly skipped. The [Playwright web-server integration](https://playwright.dev/docs/test-webserver) starts the local browser-test stack automatically.
 
-GitHub Actions supplies PostgreSQL, RabbitMQ and Redis, runs the domain/database/browser suites, and uploads an HTML report, failure traces/screenshots and the downloaded client report as `browser-workflow-results`. The suite contains 29 tests: nine domain, eighteen database/API and two browser tests.
+GitHub Actions supplies PostgreSQL, RabbitMQ and Redis, runs the domain, database, backend-browser and Pages-browser suites, and uploads an HTML report, failure traces/screenshots and the downloaded client report as `browser-workflow-results`. The two browser environments each execute the full workflow and visitor-isolation scenario.
 
 ## Scope
 

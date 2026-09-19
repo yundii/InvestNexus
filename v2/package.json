@@ -17,7 +17,10 @@
     "worker:retry": "node --env-file-if-exists=.env --import tsx scripts/retry-reports.ts",
     "market:worker": "node --env-file-if-exists=.env dist/market-worker.js",
     "market:refresh": "node --env-file-if-exists=.env --import tsx scripts/refresh-market.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:pages": "node scripts/build-pages.mjs",
+    "preview:pages": "node e2e/pages-server.mjs",
+    "test:e2e:pages": "playwright test --config playwright.pages.config.ts"
   },
   "engines": {
     "node": ">=22"

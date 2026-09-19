@@ -1,9 +1,23 @@
 name: InvestNexus
 on:
   push:
-    paths: ['v2/**', 'scripts/**', 'package.json', 'render.yaml', 'README.md', '.github/workflows/v2-ci.yml']
+    paths:
+      [
+        "v2/**",
+        "scripts/**",
+        "package.json",
+        "README.md",
+        ".github/workflows/**",
+      ]
   pull_request:
-    paths: ['v2/**', 'scripts/**', 'package.json', 'render.yaml', 'README.md', '.github/workflows/v2-ci.yml']
+    paths:
+      [
+        "v2/**",
+        "scripts/**",
+        "package.json",
+        "README.md",
+        ".github/workflows/**",
+      ]
 permissions:
   contents: read
 jobs:
@@ -16,13 +30,13 @@ jobs:
           POSTGRES_USER: investnexus
           POSTGRES_PASSWORD: ci_password
           POSTGRES_DB: investnexus
-        ports: ['5432:5432']
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U investnexus"
           --health-interval 5s --health-timeout 5s --health-retries 20
       redis:
         image: redis:7-alpine
-        ports: ['6379:6379']
+        ports: ["6379:6379"]
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s --health-timeout 5s --health-retries 20
@@ -31,7 +45,7 @@ jobs:
         env:
           RABBITMQ_DEFAULT_USER: investnexus
           RABBITMQ_DEFAULT_PASS: ci_password
-        ports: ['5672:5672']
+        ports: ["5672:5672"]
         options: >-
           --health-cmd "rabbitmq-diagnostics -q ping"
           --health-interval 5s --health-timeout 5s --health-retries 30
@@ -46,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: v2/package-lock.json
       - run: npm ci
@@ -55,6 +69,8 @@ jobs:
       - run: npm run test:integration
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run build:pages
+      - run: npm run test:e2e:pages
       - uses: actions/upload-artifact@v4
         if: always()
         with:

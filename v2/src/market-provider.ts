@@ -31,7 +31,9 @@ export function cents(value: unknown) {
 export class MockMarketDataProvider implements MarketDataProvider {
   readonly name = "mock" as const;
   constructor(
-    private anchor = process.env.MOCK_MARKET_START_DATE ?? "2026-09-18"
+    private anchor = typeof process === "undefined"
+      ? "2026-09-18"
+      : process.env.MOCK_MARKET_START_DATE ?? "2026-09-18"
   ) {}
   async getHistory(symbol: string, asOf: string) {
     if (

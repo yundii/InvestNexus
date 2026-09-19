@@ -1,17 +1,43 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+
+async function get(page: any, path: string, browserSimulation: boolean) {
+  if (!browserSimulation) {
+    const response = await page.request.get(path);
+    return { status: response.status(), body: await response.json() };
+  }
+  return page.evaluate(async (requestPath: string) => {
+    const module = await import(
+      new URL("browser-api.js", window.location.href).href
+    );
+    try {
+      return {
+        status: 200,
+        body: await module.browserApi.request(requestPath),
+      };
+    } catch (error: any) {
+      return {
+        status: error.status ?? 500,
+        body: { error: error.message },
+      };
+    }
+  }, path);
+}
+
 test("decision to report: partial fills, settlement, reconciliation and two certified days", async ({
   page,
 }, testInfo) => {
-  await page.goto("/");
+  const browserSimulation = testInfo.project.name === "pages";
+  await page.goto(browserSimulation ? "./" : "/");
   await page.getByRole("button", { name: "Start private demo" }).click();
   await expect(
     page.getByRole("heading", { name: "Create order", exact: true })
   ).toBeVisible();
-  const me = await (await page.request.get("/api/auth/me")).json();
+  const me = (await get(page, "/api/auth/me", browserSimulation)).body;
   const account = me.accounts[0].id;
   const state = async () =>
-    (await page.request.get("/api/state?accountId=" + account)).json();
+    (await get(page, "/api/state?accountId=" + account, browserSimulation))
+      .body;
   const initial = await state();
   const expectedCash = 10000000 - initial.prices.MSFT * 100 - 1000;
   await page.getByRole("button", { name: "Create order →" }).click();
@@ -84,9 +110,13 @@ test("decision to report: partial fills, settlement, reconciliation and two cert
       );
     })
     .toBe(true);
-  const first = await (
-    await page.request.get("/api/report?scope=daily&accountId=" + account)
-  ).json();
+  const first = (
+    await get(
+      page,
+      "/api/report?scope=daily&accountId=" + account,
+      browserSimulation
+    )
+  ).body;
   expect(first.reconciliation.status).toBe("RESOLVED_WITH_EXCEPTIONS");
   expect(first.performance.points).toHaveLength(1);
   await page.getByRole("button", { name: "Advance business date" }).click();
@@ -153,26 +183,31 @@ test("decision to report: partial fills, settlement, reconciliation and two cert
 
 test("visitor sandboxes are isolated and restored after reload", async ({
   browser,
-}) => {
+}, testInfo) => {
+  const browserSimulation = testInfo.project.name === "pages";
   const a = await browser.newContext(),
     b = await browser.newContext();
   try {
     const one = await a.newPage(),
       two = await b.newPage();
     for (const page of [one, two]) {
-      await page.goto("/");
+      await page.goto(browserSimulation ? "./" : "/");
       await page.getByRole("button", { name: "Start private demo" }).click();
       await expect(
         page.getByRole("heading", { name: "Create order", exact: true })
       ).toBeVisible();
     }
-    const meA = await (await one.request.get("/api/auth/me")).json(),
-      meB = await (await two.request.get("/api/auth/me")).json();
+    const meA = (await get(one, "/api/auth/me", browserSimulation)).body,
+      meB = (await get(two, "/api/auth/me", browserSimulation)).body;
     expect(meA.accounts[0].id).not.toBe(meB.accounts[0].id);
     expect(
       (
-        await two.request.get("/api/state?accountId=" + meA.accounts[0].id)
-      ).status()
+        await get(
+          two,
+          "/api/state?accountId=" + meA.accounts[0].id,
+          browserSimulation
+        )
+      ).status
     ).toBe(403);
     await one.reload();
     await expect(

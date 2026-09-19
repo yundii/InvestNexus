@@ -418,3 +418,41 @@
   background: #fff0dd;
   color: #a96920;
 }
+.browser-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  background: #e7eee9;
+  color: #18342b;
+  border-bottom: 1px solid #cddbcf;
+}
+.browser-banner strong {
+  display: block;
+  font-size: 14px;
+}
+.browser-banner span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+.browser-banner button {
+  padding: 8px 12px;
+  border: 1px solid #8ba596;
+  border-radius: 6px;
+  background: white;
+  color: #18342b;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.browser-shell .nexus {
+  min-height: calc(100vh - 76px);
+}
+@media (max-width: 600px) {
+  .browser-banner {
+    padding: 12px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+}

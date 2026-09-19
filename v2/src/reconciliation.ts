@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "./id.js";
 import { book } from "./ledger.js";
 import { symbols } from "./catalog.js";
 import { AppError } from "./types.js";

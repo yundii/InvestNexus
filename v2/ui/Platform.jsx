@@ -39,7 +39,11 @@ const workspaces = {
   operations: ["Operations console", "Settlement & reconciliation"],
   client: ["Client portal", "Portfolio & reporting"],
 };
-export default function Platform({ apiBase = "" }) {
+export default function Platform({
+  apiBase = "",
+  transport,
+  browserSimulation = false,
+}) {
   const [auth, setAuth] = useState(null),
     [accountId, setAccountId] = useState(""),
     [view, setView] = useState("client"),
@@ -53,6 +57,7 @@ export default function Platform({ apiBase = "" }) {
   context.current = { auth, accountId };
   const request = useCallback(
     async (path, options = {}) => {
+      if (transport) return transport(path, options);
       const r = await fetch(apiBase + path, {
         ...options,
         credentials: "include",
@@ -69,7 +74,7 @@ export default function Platform({ apiBase = "" }) {
       }
       return data;
     },
-    [apiBase]
+    [apiBase, transport]
   );
   const [demoAvailable, setDemoAvailable] = useState(false);
   useEffect(() => {
@@ -146,19 +151,23 @@ export default function Platform({ apiBase = "" }) {
         setError(e.message);
       });
     refresh();
-    const events = new EventSource(
-      apiBase + "/api/events?accountId=" + accountId,
-      { withCredentials: true }
-    );
-    events.onmessage = refresh;
+    const events = browserSimulation
+      ? null
+      : new EventSource(apiBase + "/api/events?accountId=" + accountId, {
+          withCredentials: true,
+        });
+    if (events) events.onmessage = refresh;
+    if (browserSimulation)
+      window.addEventListener("investnexus-browser-updated", refresh);
     // Poll as a fallback if SSE reconnects or a listener is temporarily unavailable.
     const timer = setInterval(refresh, 20000);
     return () => {
       active = false;
-      events.close();
+      events?.close();
+      window.removeEventListener("investnexus-browser-updated", refresh);
       clearInterval(timer);
     };
-  }, [auth, accountId, apiBase, load]);
+  }, [auth, accountId, apiBase, load, browserSimulation]);
   async function loginSubmit(e) {
     e.preventDefault();
     setBusy(true);
@@ -284,48 +293,50 @@ export default function Platform({ apiBase = "" }) {
               </p>
             </div>
           )}
-          <form onSubmit={loginSubmit}>
-            {registerMode && (
+          {!browserSimulation && (
+            <form onSubmit={loginSubmit}>
+              {registerMode && (
+                <label>
+                  Name
+                  <input
+                    name="name"
+                    autoComplete="name"
+                    maxLength="80"
+                    required
+                  />
+                </label>
+              )}
               <label>
-                Name
+                Email
                 <input
-                  name="name"
-                  autoComplete="name"
-                  maxLength="80"
+                  name="email"
+                  type="email"
+                  autoComplete="username"
                   required
                 />
               </label>
-            )}
-            <label>
-              Email
-              <input
-                name="email"
-                type="email"
-                autoComplete="username"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                name="password"
-                type="password"
-                autoComplete={
-                  registerMode ? "new-password" : "current-password"
-                }
-                minLength={registerMode ? 12 : undefined}
-                maxLength="128"
-                required
-              />
-            </label>
-            <button className="primary" disabled={busy}>
-              {busy
-                ? "Please wait…"
-                : registerMode
-                ? "Create account"
-                : "Sign in →"}
-            </button>
-          </form>
+              <label>
+                Password
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete={
+                    registerMode ? "new-password" : "current-password"
+                  }
+                  minLength={registerMode ? 12 : undefined}
+                  maxLength="128"
+                  required
+                />
+              </label>
+              <button className="primary" disabled={busy}>
+                {busy
+                  ? "Please wait…"
+                  : registerMode
+                  ? "Create account"
+                  : "Sign in →"}
+              </button>
+            </form>
+          )}
           {!demoAvailable && (
             <button
               className="link-button"

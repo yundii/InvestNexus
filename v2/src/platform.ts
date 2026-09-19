@@ -9,7 +9,7 @@ import type {
 } from "./types.js";
 import { currentBusinessDate } from "./performance.js";
 import { AppError } from "./types.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID } from "./id.js";
 const id = () => randomUUID();
 const now = () => new Date().toISOString();
 function check(ok: unknown, message: string): asserts ok {
